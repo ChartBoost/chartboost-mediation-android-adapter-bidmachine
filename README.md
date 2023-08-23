@@ -1,6 +1,6 @@
 # Chartboost Mediation {Partner} Adapter
 
-The Chartboost Mediation {Partner} adapter mediates {Partner} via the Chartboost Mediation SDK.
+The Chartboost Mediation BidMachine adapter mediates BidMachine via the Chartboost Mediation SDK.
 
 ## Minimum Requirements
 
@@ -13,7 +13,7 @@ The Chartboost Mediation {Partner} adapter mediates {Partner} via the Chartboost
 
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:chartboost-mediation-adapter-{partner}:{adapter-version}"
+    implementation "com.chartboost:chartboost-mediation-adapter-bidmachine:4.2.3.2.0"
 ```
 
 ## Contributions
