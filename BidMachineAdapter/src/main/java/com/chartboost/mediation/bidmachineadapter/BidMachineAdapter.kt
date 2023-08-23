@@ -180,7 +180,7 @@ class BidMachineAdapter : PartnerAdapter {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
 
         return suspendCancellableCoroutine { continuation ->
-            val adsFormat: AdsFormat = when(request.format) {
+            val adsFormat = when(request.format) {
                 AdFormat.BANNER -> AdsFormat.Banner
                 AdFormat.INTERSTITIAL -> AdsFormat.Interstitial
                 AdFormat.REWARDED, AdFormat.REWARDED_INTERSTITIAL -> AdsFormat.Rewarded
@@ -189,6 +189,7 @@ class BidMachineAdapter : PartnerAdapter {
 
             BidMachine.getBidToken(context, adsFormat) { token ->
                 if (continuation.isActive) {
+                    PartnerLogController.log(if (token.isEmpty()) BIDDER_INFO_FETCH_FAILED else BIDDER_INFO_FETCH_SUCCEEDED)
                     continuation.resume(mapOf("token" to token))
                 }
             }
