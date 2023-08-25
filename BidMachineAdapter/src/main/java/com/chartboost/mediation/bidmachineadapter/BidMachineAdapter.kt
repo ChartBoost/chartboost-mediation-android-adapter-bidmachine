@@ -178,7 +178,6 @@ class BidMachineAdapter : PartnerAdapter {
                 AdFormat.BANNER -> AdsFormat.Banner
                 AdFormat.INTERSTITIAL -> AdsFormat.Interstitial
                 AdFormat.REWARDED -> AdsFormat.Rewarded
-                AdFormat.REWARDED_INTERSTITIAL -> AdsFormat.RewardedStatic
                 else -> return@suspendCancellableCoroutine
             }
 
@@ -376,9 +375,9 @@ class BidMachineAdapter : PartnerAdapter {
                 }
 
                 override fun onAdShowFailed(banner: BannerView, error: BMError) {
-                    PartnerLogController.log(SHOW_FAILED)
-                    resumeOnce(
-                        Result.failure(ChartboostMediationAdException(getChartboostMediationError(error)))
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Failed to show banner ${getChartboostMediationError(error)}"
                     )
                 }
 
@@ -493,9 +492,9 @@ class BidMachineAdapter : PartnerAdapter {
                 }
 
                 override fun onAdShowFailed(ad: InterstitialAd, error: BMError) {
-                    PartnerLogController.log(SHOW_FAILED)
-                    resumeOnce(
-                        Result.failure(ChartboostMediationAdException(getChartboostMediationError(error)))
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Failed to show banner ${getChartboostMediationError(error)}"
                     )
                 }
 
@@ -602,9 +601,9 @@ class BidMachineAdapter : PartnerAdapter {
                 }
 
                 override fun onAdShowFailed(ad: RewardedAd, error: BMError) {
-                    PartnerLogController.log(SHOW_FAILED)
-                    resumeOnce(
-                        Result.failure(ChartboostMediationAdException(getChartboostMediationError(error)))
+                    PartnerLogController.log(
+                        SHOW_FAILED,
+                        "Failed to show banner ${getChartboostMediationError(error)}"
                     )
                 }
 
