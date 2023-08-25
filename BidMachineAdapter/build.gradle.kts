@@ -72,8 +72,7 @@ dependencies {
     // You may choose a different release version.
     "remoteImplementation"("com.chartboost:chartboost-mediation-sdk:4.0.0")
 
-    // For external usage, please use the following production dependency.
-    // You may choose a different release version.
+    // Partner SDK
     implementation("io.bidmachine:ads:2.3.2")
 
     // Partner SDK Dependencies

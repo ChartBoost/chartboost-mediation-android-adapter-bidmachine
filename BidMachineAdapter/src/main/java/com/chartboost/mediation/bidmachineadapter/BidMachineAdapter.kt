@@ -81,12 +81,6 @@ class BidMachineAdapter : PartnerAdapter {
     }
 
     /**
-     * A lambda to call for failed BidMachine ad shows.
-     */
-    private var onShowError: (error: BMError) -> Unit =
-        { _: BMError -> }
-
-    /**
      * Get the BidMachine Ads SDK version.
      */
     override val partnerSdkVersion: String
@@ -240,15 +234,7 @@ class BidMachineAdapter : PartnerAdapter {
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> {
-                onShowError = { error ->
-                    PartnerLogController.log(
-                        SHOW_FAILED,
-                        "Placement: ${partnerAd.request.partnerPlacement}. Error: ${error.code}"
-                    )
-                }
-                showFullscreenAd(partnerAd)
-            }
+            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> showFullscreenAd(partnerAd)
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
@@ -314,14 +300,10 @@ class BidMachineAdapter : PartnerAdapter {
         hasGrantedCcpaConsent: Boolean,
         privacyString: String
     ) {
-        when (hasGrantedCcpaConsent) {
-            true -> {
-                PartnerLogController.log(CCPA_CONSENT_GRANTED)
-            }
-            false -> {
-                PartnerLogController.log(CCPA_CONSENT_DENIED)
-            }
-        }
+        PartnerLogController.log(
+            if (hasGrantedCcpaConsent) CCPA_CONSENT_GRANTED
+            else CCPA_CONSENT_DENIED
+        )
 
         BidMachine.setUSPrivacyString(privacyString)
     }
@@ -412,7 +394,14 @@ class BidMachineAdapter : PartnerAdapter {
                 }
 
                 override fun onAdExpired(banner: BannerView) {
-                    PartnerLogController.log(CUSTOM, "onAdExpired")
+                    PartnerLogController.log(DID_EXPIRE)
+                    partnerAdListener.onPartnerAdExpired(
+                        PartnerAd(
+                            ad = banner,
+                            details = emptyMap(),
+                            request = request,
+                        )
+                    )
                 }
             })
 
@@ -463,9 +452,15 @@ class BidMachineAdapter : PartnerAdapter {
         return suspendCancellableCoroutine { continuation ->
             val interstitialAd = InterstitialAd(context)
             interstitialAd.setListener(object : InterstitialListener {
+                fun resumeOnce(result: Result<PartnerAd>) {
+                    if (continuation.isActive) {
+                        continuation.resume(result)
+                    }
+                }
+
                 override fun onAdLoaded(ad: InterstitialAd) {
                     PartnerLogController.log(LOAD_SUCCEEDED)
-                    continuation.resume(
+                    resumeOnce(
                         Result.success(
                             PartnerAd(
                                 ad = ad,
@@ -478,7 +473,7 @@ class BidMachineAdapter : PartnerAdapter {
 
                 override fun onAdLoadFailed(ad: InterstitialAd, error: BMError) {
                     PartnerLogController.log(LOAD_FAILED, error.message)
-                    continuation.resume(
+                    resumeOnce(
                         Result.failure(
                             ChartboostMediationAdException(getChartboostMediationError(error))
                         )
@@ -499,7 +494,9 @@ class BidMachineAdapter : PartnerAdapter {
 
                 override fun onAdShowFailed(ad: InterstitialAd, error: BMError) {
                     PartnerLogController.log(SHOW_FAILED)
-                    onShowError(error)
+                    resumeOnce(
+                        Result.failure(ChartboostMediationAdException(getChartboostMediationError(error)))
+                    )
                 }
 
                 override fun onAdClicked(ad: InterstitialAd) {
@@ -515,6 +512,13 @@ class BidMachineAdapter : PartnerAdapter {
 
                 override fun onAdExpired(ad: InterstitialAd) {
                     PartnerLogController.log(DID_EXPIRE)
+                    partnerAdListener.onPartnerAdExpired(
+                        PartnerAd(
+                            ad = ad,
+                            details = emptyMap(),
+                            request = request,
+                        )
+                    )
                 }
 
                 override fun onAdClosed(ad: InterstitialAd, isClosed: Boolean) {
@@ -558,9 +562,15 @@ class BidMachineAdapter : PartnerAdapter {
         return suspendCancellableCoroutine { continuation ->
             val rewardedAd = RewardedAd(context)
             rewardedAd.setListener(object : RewardedListener {
+                fun resumeOnce(result: Result<PartnerAd>) {
+                    if (continuation.isActive) {
+                        continuation.resume(result)
+                    }
+                }
+
                 override fun onAdLoaded(ad: RewardedAd) {
                     PartnerLogController.log(LOAD_SUCCEEDED)
-                    continuation.resume(
+                    resumeOnce(
                         Result.success(
                             PartnerAd(
                                 ad = ad,
@@ -573,7 +583,7 @@ class BidMachineAdapter : PartnerAdapter {
 
                 override fun onAdLoadFailed(ad: RewardedAd, error: BMError) {
                     PartnerLogController.log(LOAD_FAILED)
-                    continuation.resume(
+                    resumeOnce(
                         Result.failure(
                             ChartboostMediationAdException(getChartboostMediationError(error))
                         )
@@ -593,7 +603,9 @@ class BidMachineAdapter : PartnerAdapter {
 
                 override fun onAdShowFailed(ad: RewardedAd, error: BMError) {
                     PartnerLogController.log(SHOW_FAILED)
-                    onShowError(error)
+                    resumeOnce(
+                        Result.failure(ChartboostMediationAdException(getChartboostMediationError(error)))
+                    )
                 }
 
                 override fun onAdClicked(ad: RewardedAd) {
@@ -609,6 +621,13 @@ class BidMachineAdapter : PartnerAdapter {
 
                 override fun onAdExpired(ad: RewardedAd) {
                     PartnerLogController.log(DID_EXPIRE)
+                    partnerAdListener.onPartnerAdExpired(
+                        PartnerAd(
+                            ad = ad,
+                            details = emptyMap(),
+                            request = request,
+                        )
+                    )
                 }
 
                 override fun onAdClosed(ad: RewardedAd, isClosed: Boolean) {
