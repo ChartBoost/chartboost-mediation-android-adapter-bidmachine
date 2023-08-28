@@ -23,7 +23,6 @@ import com.chartboost.heliumsdk.utils.PartnerLogController
 import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
-import io.bidmachine.InitializationCallback
 import io.bidmachine.banner.BannerListener
 import io.bidmachine.banner.BannerRequest
 import io.bidmachine.banner.BannerSize
@@ -128,33 +127,31 @@ class BidMachineAdapter : PartnerAdapter {
         PartnerLogController.log(SETUP_STARTED)
 
         return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<Unit>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             Json.decodeFromJsonElement<String>(
                 (partnerConfiguration.credentials as JsonObject).getValue(SOURCE_ID_KEY)
             ).trim()
                 .takeIf { it.isNotEmpty() }?.let { sourceId ->
-                    BidMachine.initialize(context, sourceId, object : InitializationCallback {
-                        fun resumeOnce(result: Result<Unit>) {
-                            if (continuation.isActive) {
-                                continuation.resume(result)
-                            }
-                        }
-
-                        override fun onInitialized() {
-                            if (BidMachine.isInitialized()) {
-                                resumeOnce(Result.success(PartnerLogController.log(SETUP_SUCCEEDED)))
-                            } else {
-                                PartnerLogController.log(SETUP_FAILED)
-                                resumeOnce(
-                                    Result.failure(
-                                        ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN)
-                                    )
+                    BidMachine.initialize(context, sourceId) {
+                        if (BidMachine.isInitialized()) {
+                            resumeOnce(Result.success(PartnerLogController.log(SETUP_SUCCEEDED)))
+                        } else {
+                            PartnerLogController.log(SETUP_FAILED)
+                            resumeOnce(
+                                Result.failure(
+                                    ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN)
                                 )
-                            }
+                            )
                         }
-                    })
+                    }
                 } ?: run {
                 PartnerLogController.log(SETUP_FAILED, "Missing source ID.")
-                continuation.resumeWith(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS)))
+                resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS)))
             }
         }
     }
@@ -173,14 +170,14 @@ class BidMachineAdapter : PartnerAdapter {
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
 
-        return suspendCancellableCoroutine { continuation ->
-            val adFormat = when(request.format) {
-                AdFormat.BANNER -> AdsFormat.Banner
-                AdFormat.INTERSTITIAL -> AdsFormat.Interstitial
-                AdFormat.REWARDED -> AdsFormat.Rewarded
-                else -> return@suspendCancellableCoroutine
-            }
+        val adFormat = when(request.format) {
+            AdFormat.BANNER -> AdsFormat.Banner
+            AdFormat.INTERSTITIAL -> AdsFormat.Interstitial
+            AdFormat.REWARDED -> AdsFormat.Rewarded
+            else -> return emptyMap()
+        }
 
+        return suspendCancellableCoroutine { continuation ->
             BidMachine.getBidToken(context, adFormat) { token ->
                 if (continuation.isActive) {
                     PartnerLogController.log(if (token.isEmpty()) BIDDER_INFO_FETCH_FAILED else BIDDER_INFO_FETCH_SUCCEEDED)
