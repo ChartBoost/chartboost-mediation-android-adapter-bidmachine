@@ -30,10 +30,12 @@ import io.bidmachine.banner.BannerView
 import io.bidmachine.interstitial.InterstitialAd
 import io.bidmachine.interstitial.InterstitialListener
 import io.bidmachine.interstitial.InterstitialRequest
+import io.bidmachine.models.RequestBuilder
 import io.bidmachine.rewarded.RewardedAd
 import io.bidmachine.rewarded.RewardedListener
 import io.bidmachine.rewarded.RewardedRequest
 import io.bidmachine.utils.BMError
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -203,13 +205,56 @@ class BidMachineAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        return when (request.format) {
-            AdFormat.BANNER -> loadBannerAd(context, request, partnerAdListener)
-            AdFormat.INTERSTITIAL -> loadInterstitialAd(context, request, partnerAdListener)
-            AdFormat.REWARDED -> loadRewardedAd(context, request, partnerAdListener)
-            else -> {
-                PartnerLogController.log(LOAD_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
+            when (request.format) {
+                AdFormat.BANNER -> {
+                    val bannerBuilder =
+                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.size))
+                    val bannerRequest =
+                        buildBidMachineAdRequest<BannerRequest>(request, bannerBuilder)
+
+                    BannerView(context).setListener(
+                        createBannerViewListener(
+                            request = request,
+                            partnerAdListener = partnerAdListener,
+                            continuation = continuation,
+                        )
+                    ).load(bannerRequest)
+                }
+                AdFormat.INTERSTITIAL -> {
+                    val interstitialRequest =
+                        buildBidMachineAdRequest<InterstitialRequest>(request, InterstitialRequest.Builder())
+
+                    InterstitialAd(context).setListener(
+                        createInterstitialAdListener(
+                            request = request,
+                            partnerAdListener = partnerAdListener,
+                            continuation = continuation,
+                        )
+                    ).load(interstitialRequest)
+                }
+                AdFormat.REWARDED -> {
+                    val rewardedRequest =
+                        buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
+
+                    RewardedAd(context).setListener(
+                        createRewardedAdListener(
+                            request = request,
+                            partnerAdListener = partnerAdListener,
+                            continuation = continuation,
+                        )
+                    ).load(rewardedRequest)
+                }
+                else -> {
+                    PartnerLogController.log(LOAD_FAILED)
+                    resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)))
+                }
             }
         }
     }
@@ -320,100 +365,102 @@ class BidMachineAdapter : PartnerAdapter {
     }
 
     /**
+     * Build a BidMachine ad request.
+     *
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param bidMachineBuilder A [RequestBuilder] instance to
+     */
+    private inline fun <reified T> buildBidMachineAdRequest(
+        request: PartnerAdLoadRequest,
+        bidMachineBuilder: RequestBuilder<*, *>
+    ): T {
+        val adm = request.adm ?: ""
+        return if (adm.isNotEmpty()) {
+            bidMachineBuilder.setBidPayload(adm).build() as T
+        } else {
+            bidMachineBuilder.setPlacementId(request.partnerPlacement).build() as T
+        }
+    }
+
+    /**
      * Attempt to load a BidMachine banner ad.
      *
-     * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
-    private suspend fun loadBannerAd(
-        context: Context,
+    private fun createBannerViewListener(
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
-    ): Result<PartnerAd> {
-        return suspendCancellableCoroutine { continuation ->
-            val bannerView = BannerView(context)
-            bannerView.setListener( object : BannerListener {
-                fun resumeOnce(result: Result<PartnerAd>) {
-                    if (continuation.isActive) {
-                        continuation.resume(result)
-                    }
-                }
-
-                override fun onAdLoaded(banner: BannerView) {
-                    PartnerLogController.log(LOAD_SUCCEEDED)
-                    resumeOnce(
-                        Result.success(
-                            PartnerAd(
-                                ad = banner,
-                                details = emptyMap(),
-                                request = request
-                            )
-                        )
-                    )
-                }
-
-                override fun onAdLoadFailed(banner: BannerView, error: BMError) {
-                    PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL.cause)
-                    resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(error))))
-                }
-
-                override fun onAdImpression(banner: BannerView) {
-                    PartnerLogController.log(DID_TRACK_IMPRESSION)
-                    partnerAdListener.onPartnerAdImpression(
-                        PartnerAd(
-                            ad = banner,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdShowFailed(banner: BannerView, error: BMError) {
-                    PartnerLogController.log(
-                        SHOW_FAILED,
-                        "Failed to show banner ${getChartboostMediationError(error)}"
-                    )
-                }
-
-                override fun onAdClicked(banner: BannerView) {
-                    PartnerLogController.log(DID_CLICK)
-                    partnerAdListener.onPartnerAdClicked(
-                        PartnerAd(
-                            ad = banner,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdExpired(banner: BannerView) {
-                    PartnerLogController.log(DID_EXPIRE)
-                    partnerAdListener.onPartnerAdExpired(
-                        PartnerAd(
-                            ad = banner,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-            })
-
-            val adm = request.adm ?: ""
-            val bannerRequest = BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.size))
-            if (adm.isNotEmpty()) {
-                bannerRequest.setBidPayload(request.adm)
-            } else {
-                bannerRequest.setPlacementId(request.partnerPlacement)
+        continuation: CancellableContinuation<Result<PartnerAd>>
+    ) = object : BannerListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            if (continuation.isActive) {
+                continuation.resume(result)
             }
+        }
 
-            bannerView.load(bannerRequest.build())
+        override fun onAdLoaded(banner: BannerView) {
+            PartnerLogController.log(LOAD_SUCCEEDED)
+            resumeOnce(
+                Result.success(
+                    PartnerAd(
+                        ad = banner,
+                        details = emptyMap(),
+                        request = request
+                    )
+                )
+            )
+        }
+
+        override fun onAdLoadFailed(banner: BannerView, error: BMError) {
+            PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL.cause)
+            resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(error))))
+        }
+
+        override fun onAdImpression(banner: BannerView) {
+            PartnerLogController.log(DID_TRACK_IMPRESSION)
+            partnerAdListener.onPartnerAdImpression(
+                PartnerAd(
+                    ad = banner,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdShowFailed(banner: BannerView, error: BMError) {
+            PartnerLogController.log(
+                SHOW_FAILED,
+                "Failed to show banner ${getChartboostMediationError(error)}"
+            )
+        }
+
+        override fun onAdClicked(banner: BannerView) {
+            PartnerLogController.log(DID_CLICK)
+            partnerAdListener.onPartnerAdClicked(
+                PartnerAd(
+                    ad = banner,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdExpired(banner: BannerView) {
+            PartnerLogController.log(DID_EXPIRE)
+            partnerAdListener.onPartnerAdExpired(
+                PartnerAd(
+                    ad = banner,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
         }
     }
 
-    /**
+/**
      * Find the most appropriate BidMachine ad size for the given screen area based on height.
      *
      * @param size The [Size] to parse for conversion.
@@ -434,230 +481,197 @@ class BidMachineAdapter : PartnerAdapter {
     /**
      * Attempt to load a BidMachine interstitial ad.
      *
-     * @param context The current [Context].
      * @param request An [PartnerAdLoadRequest] instance containing data to load the ad with.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
-    private suspend fun loadInterstitialAd(
-        context: Context,
+    private fun createInterstitialAdListener(
         request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener,
-    ): Result<PartnerAd> {
-        return suspendCancellableCoroutine { continuation ->
-            val interstitialAd = InterstitialAd(context)
-            interstitialAd.setListener(object : InterstitialListener {
-                fun resumeOnce(result: Result<PartnerAd>) {
-                    if (continuation.isActive) {
-                        continuation.resume(result)
-                    }
-                }
-
-                override fun onAdLoaded(ad: InterstitialAd) {
-                    PartnerLogController.log(LOAD_SUCCEEDED)
-                    resumeOnce(
-                        Result.success(
-                            PartnerAd(
-                                ad = ad,
-                                details = emptyMap(),
-                                request = request,
-                            )
-                        )
-                    )
-                }
-
-                override fun onAdLoadFailed(ad: InterstitialAd, error: BMError) {
-                    PartnerLogController.log(LOAD_FAILED, error.message)
-                    resumeOnce(
-                        Result.failure(
-                            ChartboostMediationAdException(getChartboostMediationError(error))
-                        )
-                    )
-
-                }
-
-                override fun onAdImpression(ad: InterstitialAd) {
-                    PartnerLogController.log(DID_TRACK_IMPRESSION)
-                    partnerAdListener.onPartnerAdImpression(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdShowFailed(ad: InterstitialAd, error: BMError) {
-                    PartnerLogController.log(
-                        SHOW_FAILED,
-                        "Failed to show banner ${getChartboostMediationError(error)}"
-                    )
-                }
-
-                override fun onAdClicked(ad: InterstitialAd) {
-                    PartnerLogController.log(DID_CLICK)
-                    partnerAdListener.onPartnerAdClicked(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdExpired(ad: InterstitialAd) {
-                    PartnerLogController.log(DID_EXPIRE)
-                    partnerAdListener.onPartnerAdExpired(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdClosed(ad: InterstitialAd, isClosed: Boolean) {
-                    PartnerLogController.log(DID_DISMISS)
-                    partnerAdListener.onPartnerAdDismissed(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        ), null
-                    )
-                }
-            })
-
-            val adm = request.adm ?: ""
-            val interstitialRequest = InterstitialRequest.Builder()
-            if (adm.isNotEmpty()) {
-                interstitialRequest.setBidPayload(request.adm)
-            } else {
-                interstitialRequest.setPlacementId(request.partnerPlacement)
+        continuation: CancellableContinuation<Result<PartnerAd>>
+    ) = object : InterstitialListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            if (continuation.isActive) {
+                continuation.resume(result)
             }
+        }
 
-            interstitialAd.load(interstitialRequest.build())
+        override fun onAdLoaded(ad: InterstitialAd) {
+            PartnerLogController.log(LOAD_SUCCEEDED)
+            resumeOnce(
+                Result.success(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request,
+                    )
+                )
+            )
+        }
+
+        override fun onAdLoadFailed(ad: InterstitialAd, error: BMError) {
+            PartnerLogController.log(LOAD_FAILED, error.message)
+            resumeOnce(
+                Result.failure(
+                    ChartboostMediationAdException(getChartboostMediationError(error))
+                )
+            )
+        }
+
+        override fun onAdImpression(ad: InterstitialAd) {
+            PartnerLogController.log(DID_TRACK_IMPRESSION)
+            partnerAdListener.onPartnerAdImpression(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdShowFailed(ad: InterstitialAd, error: BMError) {
+            PartnerLogController.log(
+                SHOW_FAILED,
+                "Failed to show banner ${getChartboostMediationError(error)}"
+            )
+        }
+
+        override fun onAdClicked(ad: InterstitialAd) {
+            PartnerLogController.log(DID_CLICK)
+            partnerAdListener.onPartnerAdClicked(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdExpired(ad: InterstitialAd) {
+            PartnerLogController.log(DID_EXPIRE)
+            partnerAdListener.onPartnerAdExpired(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdClosed(ad: InterstitialAd, isClosed: Boolean) {
+            PartnerLogController.log(DID_DISMISS)
+            partnerAdListener.onPartnerAdDismissed(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                ), null
+            )
         }
     }
 
     /**
      * Attempt to load a BidMachine rewarded ad.
      *
-     * @param context The current [Context].
      * @param request The [PartnerAdLoadRequest] containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
-    private suspend fun loadRewardedAd(
-        context: Context,
+    private fun createRewardedAdListener(
         request: PartnerAdLoadRequest,
-        partnerAdListener: PartnerAdListener
-    ): Result<PartnerAd> {
-        return suspendCancellableCoroutine { continuation ->
-            val rewardedAd = RewardedAd(context)
-            rewardedAd.setListener(object : RewardedListener {
-                fun resumeOnce(result: Result<PartnerAd>) {
-                    if (continuation.isActive) {
-                        continuation.resume(result)
-                    }
-                }
-
-                override fun onAdLoaded(ad: RewardedAd) {
-                    PartnerLogController.log(LOAD_SUCCEEDED)
-                    resumeOnce(
-                        Result.success(
-                            PartnerAd(
-                                ad = ad,
-                                details = emptyMap(),
-                                request = request,
-                            )
-                        )
-                    )
-                }
-
-                override fun onAdLoadFailed(ad: RewardedAd, error: BMError) {
-                    PartnerLogController.log(LOAD_FAILED)
-                    resumeOnce(
-                        Result.failure(
-                            ChartboostMediationAdException(getChartboostMediationError(error))
-                        )
-                    )
-                }
-
-                override fun onAdImpression(ad: RewardedAd) {
-                    PartnerLogController.log(DID_TRACK_IMPRESSION)
-                    partnerAdListener.onPartnerAdImpression(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdShowFailed(ad: RewardedAd, error: BMError) {
-                    PartnerLogController.log(
-                        SHOW_FAILED,
-                        "Failed to show banner ${getChartboostMediationError(error)}"
-                    )
-                }
-
-                override fun onAdClicked(ad: RewardedAd) {
-                    PartnerLogController.log(DID_CLICK)
-                    partnerAdListener.onPartnerAdClicked(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdExpired(ad: RewardedAd) {
-                    PartnerLogController.log(DID_EXPIRE)
-                    partnerAdListener.onPartnerAdExpired(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-
-                override fun onAdClosed(ad: RewardedAd, isClosed: Boolean) {
-                    PartnerLogController.log(DID_DISMISS)
-                    partnerAdListener.onPartnerAdDismissed(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        ), null
-                    )
-                }
-
-                override fun onAdRewarded(ad: RewardedAd) {
-                    PartnerLogController.log(DID_REWARD)
-                    partnerAdListener.onPartnerAdRewarded(
-                        PartnerAd(
-                            ad = ad,
-                            details = emptyMap(),
-                            request = request,
-                        )
-                    )
-                }
-            })
-
-            val adm = request.adm ?: ""
-            val rewardedRequest = RewardedRequest.Builder()
-            if (adm.isNotEmpty()) {
-                rewardedRequest.setBidPayload(request.adm)
-            } else {
-                rewardedRequest.setPlacementId(request.partnerPlacement)
+        partnerAdListener: PartnerAdListener,
+        continuation: CancellableContinuation<Result<PartnerAd>>
+    ) = object : RewardedListener {
+        fun resumeOnce(result: Result<PartnerAd>) {
+            if (continuation.isActive) {
+                continuation.resume(result)
             }
+        }
 
-            rewardedAd.load(rewardedRequest.build())
+        override fun onAdLoaded(ad: RewardedAd) {
+            PartnerLogController.log(LOAD_SUCCEEDED)
+            resumeOnce(
+                Result.success(
+                    PartnerAd(
+                        ad = ad,
+                        details = emptyMap(),
+                        request = request,
+                    )
+                )
+            )
+        }
+
+        override fun onAdLoadFailed(ad: RewardedAd, error: BMError) {
+            PartnerLogController.log(LOAD_FAILED)
+            resumeOnce(
+                Result.failure(
+                    ChartboostMediationAdException(getChartboostMediationError(error))
+                )
+            )
+        }
+
+        override fun onAdImpression(ad: RewardedAd) {
+            PartnerLogController.log(DID_TRACK_IMPRESSION)
+            partnerAdListener.onPartnerAdImpression(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdShowFailed(ad: RewardedAd, error: BMError) {
+            PartnerLogController.log(
+                SHOW_FAILED,
+                "Failed to show banner ${getChartboostMediationError(error)}"
+            )
+        }
+
+        override fun onAdClicked(ad: RewardedAd) {
+            PartnerLogController.log(DID_CLICK)
+            partnerAdListener.onPartnerAdClicked(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdExpired(ad: RewardedAd) {
+            PartnerLogController.log(DID_EXPIRE)
+            partnerAdListener.onPartnerAdExpired(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
+        }
+
+        override fun onAdClosed(ad: RewardedAd, isClosed: Boolean) {
+            PartnerLogController.log(DID_DISMISS)
+            partnerAdListener.onPartnerAdDismissed(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                ), null
+            )
+        }
+
+        override fun onAdRewarded(ad: RewardedAd) {
+            PartnerLogController.log(DID_REWARD)
+            partnerAdListener.onPartnerAdRewarded(
+                PartnerAd(
+                    ad = ad,
+                    details = emptyMap(),
+                    request = request,
+                )
+            )
         }
     }
 
