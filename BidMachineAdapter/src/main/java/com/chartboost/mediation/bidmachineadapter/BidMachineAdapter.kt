@@ -219,36 +219,33 @@ class BidMachineAdapter : PartnerAdapter {
                     val bannerRequest =
                         buildBidMachineAdRequest<BannerRequest>(request, bannerBuilder)
 
-                    BannerView(context).setListener(
-                        createBannerViewListener(
-                            request = request,
-                            partnerAdListener = partnerAdListener,
-                            continuation = continuation,
-                        )
+                    attachListener<BannerView>(
+                        ad = BannerView(context),
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation,
                     ).load(bannerRequest)
                 }
                 AdFormat.INTERSTITIAL -> {
                     val interstitialRequest =
                         buildBidMachineAdRequest<InterstitialRequest>(request, InterstitialRequest.Builder())
 
-                    InterstitialAd(context).setListener(
-                        createInterstitialAdListener(
-                            request = request,
-                            partnerAdListener = partnerAdListener,
-                            continuation = continuation,
-                        )
-                    ).load(interstitialRequest)
+                   attachListener<InterstitialAd>(
+                       ad = InterstitialAd(context),
+                       request = request,
+                       partnerAdListener = partnerAdListener,
+                       continuation = continuation,
+                   ).load(interstitialRequest)
                 }
                 AdFormat.REWARDED -> {
                     val rewardedRequest =
                         buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
 
-                    RewardedAd(context).setListener(
-                        createRewardedAdListener(
-                            request = request,
-                            partnerAdListener = partnerAdListener,
-                            continuation = continuation,
-                        )
+                    attachListener<RewardedAd>(
+                        ad = RewardedAd(context),
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation,
                     ).load(rewardedRequest)
                 }
                 else -> {
@@ -350,6 +347,49 @@ class BidMachineAdapter : PartnerAdapter {
     }
 
     /**
+     * Attach the corresponding listener to the passed BidMachine ad.
+     *
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
+     * @param continuation A [CancellableContinuation] to notify when the [Result] has succeeded or failed.
+     */
+    private inline fun <reified T> attachListener(
+        ad: Any,
+        request: PartnerAdLoadRequest,
+        partnerAdListener: PartnerAdListener,
+        continuation: CancellableContinuation<Result<PartnerAd>>
+    ): T = when (ad) {
+            is BannerView -> {
+                ad.setListener(
+                    createBannerViewListener(
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation,
+                    )
+                ) as T
+            }
+            is InterstitialAd -> {
+                ad.setListener(
+                    createInterstitialAdListener(
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation,
+                    )
+                ) as T
+            }
+            is RewardedAd -> {
+                ad.setListener(
+                    createRewardedAdListener(
+                        request = request,
+                        partnerAdListener = partnerAdListener,
+                        continuation = continuation,
+                    )
+                ) as T
+            }
+        else -> { ad as T}
+    }
+
+    /**
      * Notify BidMachine of the COPPA subjectivity.
      *
      * @param context The current [Context].
@@ -387,6 +427,7 @@ class BidMachineAdapter : PartnerAdapter {
      *
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
+     * @param continuation A [CancellableContinuation] to notify when the [Result] has succeeded or failed.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
@@ -416,6 +457,7 @@ class BidMachineAdapter : PartnerAdapter {
 
         override fun onAdLoadFailed(banner: BannerView, error: BMError) {
             PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL.cause)
+            banner.destroy()
             resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(error))))
         }
 
@@ -435,6 +477,7 @@ class BidMachineAdapter : PartnerAdapter {
                 SHOW_FAILED,
                 "Failed to show banner ${getChartboostMediationError(error)}"
             )
+            banner.destroy()
         }
 
         override fun onAdClicked(banner: BannerView) {
@@ -535,6 +578,7 @@ class BidMachineAdapter : PartnerAdapter {
                 SHOW_FAILED,
                 "Failed to show banner ${getChartboostMediationError(error)}"
             )
+            ad.destroy()
         }
 
         override fun onAdClicked(ad: InterstitialAd) {
@@ -559,7 +603,7 @@ class BidMachineAdapter : PartnerAdapter {
             )
         }
 
-        override fun onAdClosed(ad: InterstitialAd, isClosed: Boolean) {
+        override fun onAdClosed(ad: InterstitialAd, isFinished: Boolean) {
             PartnerLogController.log(DID_DISMISS)
             partnerAdListener.onPartnerAdDismissed(
                 PartnerAd(
@@ -568,6 +612,7 @@ class BidMachineAdapter : PartnerAdapter {
                     request = request,
                 ), null
             )
+            ad.destroy()
         }
     }
 
@@ -628,6 +673,7 @@ class BidMachineAdapter : PartnerAdapter {
                 SHOW_FAILED,
                 "Failed to show banner ${getChartboostMediationError(error)}"
             )
+            ad.destroy()
         }
 
         override fun onAdClicked(ad: RewardedAd) {
@@ -652,7 +698,7 @@ class BidMachineAdapter : PartnerAdapter {
             )
         }
 
-        override fun onAdClosed(ad: RewardedAd, isClosed: Boolean) {
+        override fun onAdClosed(ad: RewardedAd, isFinished: Boolean) {
             PartnerLogController.log(DID_DISMISS)
             partnerAdListener.onPartnerAdDismissed(
                 PartnerAd(
@@ -661,6 +707,7 @@ class BidMachineAdapter : PartnerAdapter {
                     request = request,
                 ), null
             )
+            ad.destroy()
         }
 
         override fun onAdRewarded(ad: RewardedAd) {
