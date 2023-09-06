@@ -1,5 +1,5 @@
 /*
- * Copyright 2022-2023 Chartboost, Inc.
+ * Copyright 2023 Chartboost, Inc.
  * 
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
@@ -66,7 +66,7 @@ class BidMachineAdapter : PartnerAdapter {
             }
 
         /**
-         * Log level option that can be set to alter the output verbosity of the BidMachine Ads SDK.
+         * Enable/disable logging for the BidMachine Ads SDK.
          */
         var isLoggingEnabled = false
             set(value) {
@@ -266,6 +266,7 @@ class BidMachineAdapter : PartnerAdapter {
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
+
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> {
                 // Banner ads do not have a separate "show" mechanism.
@@ -349,6 +350,7 @@ class BidMachineAdapter : PartnerAdapter {
     /**
      * Attach the corresponding listener to the passed BidMachine ad.
      *
+     * @param ad An [Any] instance of a BidMachine ad.
      * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      * @param continuation A [CancellableContinuation] to notify when the [Result] has succeeded or failed.
@@ -503,7 +505,7 @@ class BidMachineAdapter : PartnerAdapter {
         }
     }
 
-/**
+    /**
      * Find the most appropriate BidMachine ad size for the given screen area based on height.
      *
      * @param size The [Size] to parse for conversion.
@@ -511,6 +513,7 @@ class BidMachineAdapter : PartnerAdapter {
      * @return The BidMachine ad size that best matches the given [Size].
      */
     private fun getBidMachineBannerAdSize(size: Size?): BannerSize {
+        // TODO: This may change once adapter banner changes are applied.
         val height = size?.height ?: return BannerSize.Size_320x50
 
         return when {

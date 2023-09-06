@@ -1,4 +1,4 @@
-# Chartboost Mediation {Partner} Adapter
+# Chartboost Mediation BidMachine Adapter
 
 The Chartboost Mediation BidMachine adapter mediates BidMachine via the Chartboost Mediation SDK.
 
