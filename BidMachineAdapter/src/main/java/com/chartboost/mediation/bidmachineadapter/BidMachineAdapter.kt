@@ -249,8 +249,21 @@ class BidMachineAdapter : PartnerAdapter {
                     ).load(rewardedRequest)
                 }
                 else -> {
-                    PartnerLogController.log(LOAD_FAILED)
-                    resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)))
+                    if (request.format.key == "rewarded_interstitial") {
+                        // BidMachine does not have a specific rewarded interstitial class.
+                        val rewardedRequest =
+                            buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
+
+                        attachListener<RewardedAd>(
+                            ad = RewardedAd(context),
+                            request = request,
+                            partnerAdListener = partnerAdListener,
+                            continuation = continuation,
+                        ).load(rewardedRequest)
+                    } else {
+                        PartnerLogController.log(LOAD_FAILED)
+                        resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)))
+                    }
                 }
             }
         }
@@ -275,8 +288,12 @@ class BidMachineAdapter : PartnerAdapter {
             }
             AdFormat.INTERSTITIAL, AdFormat.REWARDED -> showFullscreenAd(partnerAd)
             else -> {
-                PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                if (partnerAd.request.format.key == "rewarded_interstitial") {
+                    showFullscreenAd(partnerAd)
+                } else {
+                    PartnerLogController.log(SHOW_FAILED)
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                }
             }
         }
     }
