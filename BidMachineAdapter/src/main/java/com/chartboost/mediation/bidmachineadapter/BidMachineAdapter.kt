@@ -8,6 +8,7 @@
 package com.chartboost.mediation.bidmachineadapter
 
 import android.content.Context
+import android.util.DisplayMetrics
 import android.util.Size
 import com.chartboost.heliumsdk.domain.AdFormat
 import com.chartboost.heliumsdk.domain.ChartboostMediationAdException
@@ -172,10 +173,10 @@ class BidMachineAdapter : PartnerAdapter {
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
 
-        val adFormat = when(request.format) {
-            AdFormat.BANNER -> AdsFormat.Banner
-            AdFormat.INTERSTITIAL -> AdsFormat.Interstitial
-            AdFormat.REWARDED -> AdsFormat.Rewarded
+        val adFormat = when(request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> AdsFormat.Banner
+            AdFormat.INTERSTITIAL.key -> AdsFormat.Interstitial
+            AdFormat.REWARDED.key -> AdsFormat.Rewarded
             else -> return emptyMap()
         }
 
@@ -212,8 +213,8 @@ class BidMachineAdapter : PartnerAdapter {
                 }
             }
 
-            when (request.format) {
-                AdFormat.BANNER -> {
+            when (request.format.key) {
+                AdFormat.BANNER.key, "adaptive_banner" -> {
                     val bannerBuilder =
                         BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.size))
                     val bannerRequest =
@@ -226,7 +227,7 @@ class BidMachineAdapter : PartnerAdapter {
                         continuation = continuation,
                     ).load(bannerRequest)
                 }
-                AdFormat.INTERSTITIAL -> {
+                AdFormat.INTERSTITIAL.key -> {
                     val interstitialRequest =
                         buildBidMachineAdRequest<InterstitialRequest>(request, InterstitialRequest.Builder())
 
@@ -237,7 +238,7 @@ class BidMachineAdapter : PartnerAdapter {
                        continuation = continuation,
                    ).load(interstitialRequest)
                 }
-                AdFormat.REWARDED -> {
+                AdFormat.REWARDED.key -> {
                     val rewardedRequest =
                         buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
 
@@ -280,13 +281,13 @@ class BidMachineAdapter : PartnerAdapter {
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
 
-        return when (partnerAd.request.format) {
-            AdFormat.BANNER -> {
+        return when (partnerAd.request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> {
                 // Banner ads do not have a separate "show" mechanism.
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL, AdFormat.REWARDED -> showFullscreenAd(partnerAd)
+            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key -> showFullscreenAd(partnerAd)
             else -> {
                 if (partnerAd.request.format.key == "rewarded_interstitial") {
                     showFullscreenAd(partnerAd)
@@ -529,16 +530,11 @@ class BidMachineAdapter : PartnerAdapter {
      *
      * @return The BidMachine ad size that best matches the given [Size].
      */
-    private fun getBidMachineBannerAdSize(size: Size?): BannerSize {
-        // TODO: This may change once adapter banner changes are applied.
-        val height = size?.height ?: return BannerSize.Size_320x50
-
-        return when {
-            height in 50 until 90 -> BannerSize.Size_320x50
-            height in 90 until 250 -> BannerSize.Size_728x90
-            height >= 250 -> BannerSize.Size_300x250
-            else -> BannerSize.Size_320x50
-        }
+    private fun getBidMachineBannerAdSize(size: Size?) = when (size?.height) {
+        in 50 until 90 -> BannerSize.Size_320x50
+        in 90 until 250 -> BannerSize.Size_728x90
+        in 250 until DisplayMetrics().heightPixels -> BannerSize.Size_300x250
+        else -> BannerSize.Size_320x50
     }
 
     /**
