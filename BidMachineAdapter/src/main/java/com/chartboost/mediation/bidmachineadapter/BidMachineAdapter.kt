@@ -176,7 +176,7 @@ class BidMachineAdapter : PartnerAdapter {
         val adFormat = when(request.format.key) {
             AdFormat.BANNER.key, "adaptive_banner" -> AdsFormat.Banner
             AdFormat.INTERSTITIAL.key -> AdsFormat.Interstitial
-            AdFormat.REWARDED.key -> AdsFormat.Rewarded
+            AdFormat.REWARDED.key, "rewarded_interstitial" -> AdsFormat.Rewarded
             else -> return emptyMap()
         }
 
@@ -250,21 +250,8 @@ class BidMachineAdapter : PartnerAdapter {
                     ).load(rewardedRequest)
                 }
                 else -> {
-                    if (request.format.key == "rewarded_interstitial") {
-                        // BidMachine does not have a specific rewarded interstitial class.
-                        val rewardedRequest =
-                            buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
-
-                        attachListener<RewardedAd>(
-                            ad = RewardedAd(context),
-                            request = request,
-                            partnerAdListener = partnerAdListener,
-                            continuation = continuation,
-                        ).load(rewardedRequest)
-                    } else {
-                        PartnerLogController.log(LOAD_FAILED)
-                        resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)))
-                    }
+                    PartnerLogController.log(LOAD_FAILED)
+                    resumeOnce(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)))
                 }
             }
         }
@@ -287,14 +274,12 @@ class BidMachineAdapter : PartnerAdapter {
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key -> showFullscreenAd(partnerAd)
+            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key, "rewarded_interstitial" -> showFullscreenAd(
+                partnerAd
+            )
             else -> {
-                if (partnerAd.request.format.key == "rewarded_interstitial") {
-                    showFullscreenAd(partnerAd)
-                } else {
-                    PartnerLogController.log(SHOW_FAILED)
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
-                }
+                PartnerLogController.log(SHOW_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
             }
         }
     }
