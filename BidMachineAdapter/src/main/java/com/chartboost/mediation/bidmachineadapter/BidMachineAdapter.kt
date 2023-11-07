@@ -23,6 +23,8 @@ import com.chartboost.heliumsdk.utils.PartnerLogController
 import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
+import io.bidmachine.Publisher
+import io.bidmachine.TargetingParams
 import io.bidmachine.banner.BannerListener
 import io.bidmachine.banner.BannerRequest
 import io.bidmachine.banner.BannerSize
@@ -76,10 +78,39 @@ class BidMachineAdapter : PartnerAdapter {
             }
 
         /**
+         * Globally set targeting parameters.
+         */
+        fun setTargetingParams(targetingParams: TargetingParams) {
+            BidMachine.setTargetingParams(targetingParams)
+            PartnerLogController.log(CUSTOM, "BidMachine targeting parameters set with $targetingParams")
+        }
+
+        /**
+         * Set Publisher information.
+         */
+        fun setPublisher(publisher: Publisher) {
+            BidMachine.setPublisher(publisher)
+            PartnerLogController.log(CUSTOM, "BidMachine publisher information set with: $publisher")
+        }
+
+        /**
          * Key for parsing the BidMachine SDK source ID.
          */
         private const val SOURCE_ID_KEY = "source_id"
     }
+
+    /**
+     * A map of BidMachine interstitial ads keyed by a request identifier.
+     */
+    private val bidMachineInterstitialAds = mutableMapOf<String, InterstitialAd>()
+
+    /**
+     * A map of BidMachine rewarded ads keyed by a request identifier.
+     */
+    private val bidMachineRewardedAds = mutableMapOf<String, RewardedAd>()
+
+
+
 
     /**
      * Get the BidMachine Ads SDK version.
@@ -139,6 +170,8 @@ class BidMachineAdapter : PartnerAdapter {
                 (partnerConfiguration.credentials as JsonObject).getValue(SOURCE_ID_KEY)
             ).trim()
                 .takeIf { it.isNotEmpty() }?.let { sourceId ->
+                    bidMachineInterstitialAds.clear()
+                    bidMachineRewardedAds.clear()
                     BidMachine.initialize(context, sourceId) {
                         if (BidMachine.isInitialized()) {
                             resumeOnce(Result.success(PartnerLogController.log(SETUP_SUCCEEDED)))
@@ -230,7 +263,7 @@ class BidMachineAdapter : PartnerAdapter {
                     val interstitialRequest =
                         buildBidMachineAdRequest<InterstitialRequest>(request, InterstitialRequest.Builder())
 
-                   attachListener<InterstitialAd>(
+                   bidMachineInterstitialAds[request.identifier] = attachListener<InterstitialAd>(
                        ad = InterstitialAd(context),
                        request = request,
                        partnerAdListener = partnerAdListener,
@@ -241,7 +274,7 @@ class BidMachineAdapter : PartnerAdapter {
                     val rewardedRequest =
                         buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
 
-                    attachListener<RewardedAd>(
+                    bidMachineRewardedAds[request.identifier] = attachListener<RewardedAd>(
                         ad = RewardedAd(context),
                         request = request,
                         partnerAdListener = partnerAdListener,
@@ -557,6 +590,7 @@ class BidMachineAdapter : PartnerAdapter {
 
         override fun onAdLoadFailed(ad: InterstitialAd, error: BMError) {
             PartnerLogController.log(LOAD_FAILED, error.message)
+            bidMachineInterstitialAds.remove(request.identifier)
             resumeOnce(
                 Result.failure(
                     ChartboostMediationAdException(getChartboostMediationError(error))
@@ -581,6 +615,7 @@ class BidMachineAdapter : PartnerAdapter {
                 "Failed to show banner ${getChartboostMediationError(error)}"
             )
             ad.destroy()
+            bidMachineInterstitialAds.remove(request.identifier)
         }
 
         override fun onAdClicked(ad: InterstitialAd) {
@@ -603,6 +638,7 @@ class BidMachineAdapter : PartnerAdapter {
                     request = request,
                 )
             )
+            bidMachineInterstitialAds.remove(request.identifier)
         }
 
         override fun onAdClosed(ad: InterstitialAd, isFinished: Boolean) {
@@ -615,6 +651,7 @@ class BidMachineAdapter : PartnerAdapter {
                 ), null
             )
             ad.destroy()
+            bidMachineInterstitialAds.remove(request.identifier)
         }
     }
 
@@ -652,6 +689,7 @@ class BidMachineAdapter : PartnerAdapter {
 
         override fun onAdLoadFailed(ad: RewardedAd, error: BMError) {
             PartnerLogController.log(LOAD_FAILED)
+            bidMachineRewardedAds.remove(request.identifier)
             resumeOnce(
                 Result.failure(
                     ChartboostMediationAdException(getChartboostMediationError(error))
@@ -676,6 +714,7 @@ class BidMachineAdapter : PartnerAdapter {
                 "Failed to show banner ${getChartboostMediationError(error)}"
             )
             ad.destroy()
+            bidMachineRewardedAds.remove(request.identifier)
         }
 
         override fun onAdClicked(ad: RewardedAd) {
@@ -698,6 +737,7 @@ class BidMachineAdapter : PartnerAdapter {
                     request = request,
                 )
             )
+            bidMachineRewardedAds.remove(request.identifier)
         }
 
         override fun onAdClosed(ad: RewardedAd, isFinished: Boolean) {
@@ -710,6 +750,7 @@ class BidMachineAdapter : PartnerAdapter {
                 ), null
             )
             ad.destroy()
+            bidMachineRewardedAds.remove(request.identifier)
         }
 
         override fun onAdRewarded(ad: RewardedAd) {
