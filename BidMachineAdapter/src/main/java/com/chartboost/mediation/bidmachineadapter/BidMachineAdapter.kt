@@ -8,7 +8,6 @@
 package com.chartboost.mediation.bidmachineadapter
 
 import android.content.Context
-import android.util.DisplayMetrics
 import android.util.Size
 import com.chartboost.heliumsdk.domain.AdFormat
 import com.chartboost.heliumsdk.domain.ChartboostMediationAdException
@@ -238,7 +237,7 @@ class BidMachineAdapter : PartnerAdapter {
                        continuation = continuation,
                    ).load(interstitialRequest)
                 }
-                AdFormat.REWARDED.key -> {
+                AdFormat.REWARDED.key, "rewarded_interstitial" -> {
                     val rewardedRequest =
                         buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
 
@@ -515,12 +514,14 @@ class BidMachineAdapter : PartnerAdapter {
      *
      * @return The BidMachine ad size that best matches the given [Size].
      */
-    private fun getBidMachineBannerAdSize(size: Size?) = when (size?.height) {
-        in 50 until 90 -> BannerSize.Size_320x50
-        in 90 until 250 -> BannerSize.Size_728x90
-        in 250 until DisplayMetrics().heightPixels -> BannerSize.Size_300x250
-        else -> BannerSize.Size_320x50
-    }
+    private fun getBidMachineBannerAdSize(size: Size?) = size?.height?.let {
+        when {
+            it in 50 until 90 -> BannerSize.Size_320x50
+            it in 90 until 250 -> BannerSize.Size_728x90
+            it >= 250 -> BannerSize.Size_300x250
+            else -> BannerSize.Size_320x50
+        }
+    } ?: BannerSize.Size_320x50
 
     /**
      * Attempt to load a BidMachine interstitial ad.
