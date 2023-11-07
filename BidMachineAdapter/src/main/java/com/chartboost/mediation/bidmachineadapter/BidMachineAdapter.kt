@@ -109,9 +109,6 @@ class BidMachineAdapter : PartnerAdapter {
      */
     private val bidMachineRewardedAds = mutableMapOf<String, RewardedAd>()
 
-
-
-
     /**
      * Get the BidMachine Ads SDK version.
      */
