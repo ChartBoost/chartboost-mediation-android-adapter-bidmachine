@@ -788,8 +788,8 @@ class BidMachineAdapter : PartnerAdapter {
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
             }
 
-            is InterstitialAd -> canShowAd(ad::isLoaded, ad::show)
-            is RewardedAd -> canShowAd(ad::isLoaded, ad::show)
+            is InterstitialAd -> canShowAd(ad::canShow, ad::show)
+            is RewardedAd -> canShowAd(ad::canShow, ad::show)
 
             else -> {
                 PartnerLogController.log(
