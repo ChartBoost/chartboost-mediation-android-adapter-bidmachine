@@ -23,6 +23,7 @@ import com.chartboost.heliumsdk.utils.PartnerLogController
 import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
+import io.bidmachine.PriceFloorParams
 import io.bidmachine.Publisher
 import io.bidmachine.TargetingParams
 import io.bidmachine.banner.BannerListener
@@ -478,7 +479,12 @@ class BidMachineAdapter : PartnerAdapter {
         return if (adm.isNotEmpty()) {
             bidMachineBuilder.setBidPayload(adm).build() as T
         } else {
-            bidMachineBuilder.setPlacementId(request.partnerPlacement).build() as T
+            val price = request.partnerSettings["price"]?.toDouble() ?: 0.0
+            bidMachineBuilder.setPlacementId(request.partnerPlacement)
+                .setPriceFloorParams(
+                    PriceFloorParams().addPriceFloor(price),
+                )
+                .build() as T
         }
     }
 
