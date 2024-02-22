@@ -13,7 +13,7 @@ The Chartboost Mediation BidMachine adapter mediates BidMachine via the Chartboo
 
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:chartboost-mediation-adapter-bidmachine:4.2.4.2.0"
+    implementation "com.chartboost:chartboost-mediation-adapter-bidmachine:4.2.5.0.0"
 ```
 
 ## Contributions
