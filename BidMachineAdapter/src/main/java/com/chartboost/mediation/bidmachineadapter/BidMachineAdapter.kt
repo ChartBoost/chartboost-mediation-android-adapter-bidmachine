@@ -1,6 +1,6 @@
 /*
  * Copyright 2023-2024 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
@@ -9,18 +9,18 @@ package com.chartboost.mediation.bidmachineadapter
 
 import android.content.Context
 import android.util.Size
-import com.chartboost.heliumsdk.domain.AdFormat
-import com.chartboost.heliumsdk.domain.ChartboostMediationAdException
-import com.chartboost.heliumsdk.domain.ChartboostMediationError
-import com.chartboost.heliumsdk.domain.GdprConsentStatus
-import com.chartboost.heliumsdk.domain.PartnerAd
-import com.chartboost.heliumsdk.domain.PartnerAdListener
-import com.chartboost.heliumsdk.domain.PartnerAdLoadRequest
-import com.chartboost.heliumsdk.domain.PartnerAdapter
-import com.chartboost.heliumsdk.domain.PartnerConfiguration
-import com.chartboost.heliumsdk.domain.PreBidRequest
-import com.chartboost.heliumsdk.utils.PartnerLogController
-import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.domain.AdFormat
+import com.chartboost.chartboostmediationsdk.domain.ChartboostMediationAdException
+import com.chartboost.chartboostmediationsdk.domain.ChartboostMediationError
+import com.chartboost.chartboostmediationsdk.domain.GdprConsentStatus
+import com.chartboost.chartboostmediationsdk.domain.PartnerAd
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdListener
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdLoadRequest
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdapter
+import com.chartboost.chartboostmediationsdk.domain.PartnerConfiguration
+import com.chartboost.chartboostmediationsdk.domain.PreBidRequest
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.*
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
 import io.bidmachine.Publisher
