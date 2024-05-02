@@ -18,6 +18,7 @@ import com.chartboost.chartboostmediationsdk.domain.PartnerAd
 import com.chartboost.chartboostmediationsdk.domain.PartnerAdListener
 import com.chartboost.chartboostmediationsdk.domain.PartnerAdLoadRequest
 import com.chartboost.chartboostmediationsdk.domain.PartnerAdapter
+import com.chartboost.chartboostmediationsdk.domain.PartnerAdapterConfiguration
 import com.chartboost.chartboostmediationsdk.domain.PartnerConfiguration
 import com.chartboost.chartboostmediationsdk.domain.PreBidRequest
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
@@ -25,8 +26,6 @@ import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerA
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
 import io.bidmachine.PriceFloorParams
-import io.bidmachine.Publisher
-import io.bidmachine.TargetingParams
 import io.bidmachine.banner.BannerListener
 import io.bidmachine.banner.BannerRequest
 import io.bidmachine.banner.BannerSize
@@ -52,57 +51,15 @@ import kotlin.coroutines.resume
 class BidMachineAdapter : PartnerAdapter {
     companion object {
         /**
-         * Test mode flag that can optionally be set to true to enable test ads. It can be set at any
-         * time and it will take effect for the next ad request. Remember to set this to false in
-         * production.
-         */
-        var testModeEnabled = false
-            set(value) {
-                field = value
-                BidMachine.setTestMode(value)
-                PartnerLogController.log(
-                    CUSTOM,
-                    "BidMachine test mode is ${
-                        if (value) {
-                            "enabled. Remember to disable it before publishing."
-                        } else {
-                            "disabled."
-                        }
-                    }",
-                )
-            }
-
-        /**
-         * Enable/disable logging for the BidMachine Ads SDK.
-         */
-        var isLoggingEnabled = false
-            set(value) {
-                field = value
-                BidMachine.setLoggingEnabled(value)
-                PartnerLogController.log(CUSTOM, "BidMachine logging ${ if (value) "enabled" else "disabled" }.")
-            }
-
-        /**
-         * Globally set targeting parameters.
-         */
-        fun setTargetingParams(targetingParams: TargetingParams) {
-            BidMachine.setTargetingParams(targetingParams)
-            PartnerLogController.log(CUSTOM, "BidMachine targeting parameters set with $targetingParams")
-        }
-
-        /**
-         * Set Publisher information.
-         */
-        fun setPublisher(publisher: Publisher) {
-            BidMachine.setPublisher(publisher)
-            PartnerLogController.log(CUSTOM, "BidMachine publisher information set with: $publisher")
-        }
-
-        /**
          * Key for parsing the BidMachine SDK source ID.
          */
         private const val SOURCE_ID_KEY = "source_id"
     }
+
+    /**
+     * The BidMachine adapter configuration.
+     */
+    override var configuration: PartnerAdapterConfiguration = BidMachineAdapterConfiguration
 
     /**
      * A map of BidMachine interstitial ads keyed by a request identifier.
@@ -113,39 +70,6 @@ class BidMachineAdapter : PartnerAdapter {
      * A map of BidMachine rewarded ads keyed by a request identifier.
      */
     private val bidMachineRewardedAds = mutableMapOf<String, RewardedAd>()
-
-    /**
-     * Get the BidMachine Ads SDK version.
-     */
-    override val partnerSdkVersion: String
-        get() = BidMachine.VERSION
-
-    /**
-     * Get the BidMachine adapter version.
-     *
-     * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Chartboost Mediation:
-     *
-     * Chartboost Mediation.Partner.Adapter
-     *
-     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
-     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
-     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
-     */
-    override val adapterVersion: String
-        get() = BuildConfig.CHARTBOOST_MEDIATION_BIDMACHINE_ADAPTER_VERSION
-
-    /**
-     * Get the partner name for internal uses.
-     */
-    override val partnerId: String
-        get() = "bidmachine"
-
-    /**
-     * Get the partner name for external uses.
-     */
-    override val partnerDisplayName: String
-        get() = "BidMachine"
 
     /**
      * Initialize the BidMachine Ads SDK so that it is ready to request ads.
