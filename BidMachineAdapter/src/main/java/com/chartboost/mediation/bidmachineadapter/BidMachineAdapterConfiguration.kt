@@ -46,14 +46,14 @@ object BidMachineAdapterConfiguration : PartnerAdapterConfiguration {
             field = value
             BidMachine.setTestMode(value)
             PartnerLogController.log(
-                    PartnerLogController.PartnerAdapterEvents.CUSTOM,
-                    "BidMachine test mode is ${
-                        if (value) {
-                            "enabled. Remember to disable it before publishing."
-                        } else {
-                            "disabled."
-                        }
-                    }",
+                PartnerLogController.PartnerAdapterEvents.CUSTOM,
+                "BidMachine test mode is ${
+                    if (value) {
+                        "enabled. Remember to disable it before publishing."
+                    } else {
+                        "disabled."
+                    }
+                }",
             )
         }
 
@@ -65,8 +65,8 @@ object BidMachineAdapterConfiguration : PartnerAdapterConfiguration {
             field = value
             BidMachine.setLoggingEnabled(value)
             PartnerLogController.log(
-                    PartnerLogController.PartnerAdapterEvents.CUSTOM,
-                    "BidMachine logging ${if (value) "enabled" else "disabled"}.",
+                PartnerLogController.PartnerAdapterEvents.CUSTOM,
+                "BidMachine logging ${if (value) "enabled" else "disabled"}.",
             )
         }
 
@@ -76,8 +76,8 @@ object BidMachineAdapterConfiguration : PartnerAdapterConfiguration {
     fun setTargetingParams(targetingParams: TargetingParams) {
         BidMachine.setTargetingParams(targetingParams)
         PartnerLogController.log(
-                PartnerLogController.PartnerAdapterEvents.CUSTOM,
-                "BidMachine targeting parameters set with $targetingParams",
+            PartnerLogController.PartnerAdapterEvents.CUSTOM,
+            "BidMachine targeting parameters set with $targetingParams",
         )
     }
 
@@ -87,8 +87,8 @@ object BidMachineAdapterConfiguration : PartnerAdapterConfiguration {
     fun setPublisher(publisher: Publisher) {
         BidMachine.setPublisher(publisher)
         PartnerLogController.log(
-                PartnerLogController.PartnerAdapterEvents.CUSTOM,
-                "BidMachine publisher information set with: $publisher",
+            PartnerLogController.PartnerAdapterEvents.CUSTOM,
+            "BidMachine publisher information set with: $publisher",
         )
     }
 }

@@ -105,7 +105,7 @@ class BidMachineAdapter : PartnerAdapter {
                             PartnerLogController.log(SETUP_FAILED)
                             resumeOnce(
                                 Result.failure(
-                                    ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN),
+                                    ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown),
                                 ),
                             )
                         }
@@ -113,7 +113,7 @@ class BidMachineAdapter : PartnerAdapter {
                 } ?: run {
                 PartnerLogController.log(SETUP_FAILED, "Missing source ID.")
                 resumeOnce(
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS)),
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.InvalidCredentials)),
                 )
             }
         }
@@ -221,7 +221,7 @@ class BidMachineAdapter : PartnerAdapter {
                 else -> {
                     PartnerLogController.log(LOAD_FAILED)
                     resumeOnce(
-                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)),
+                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat)),
                     )
                 }
             }
@@ -254,7 +254,7 @@ class BidMachineAdapter : PartnerAdapter {
                 )
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
             }
         }
     }
@@ -456,7 +456,7 @@ class BidMachineAdapter : PartnerAdapter {
             banner: BannerView,
             error: BMError,
         ) {
-            PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL.cause)
+            PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.LoadError.NoFill.cause.toString())
             banner.destroy()
             resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(error))))
         }
@@ -769,14 +769,14 @@ class BidMachineAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             } else {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotReady))
             }
         }
 
         return when (val ad = partnerAd.ad) {
             null -> {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotFound))
             }
 
             is InterstitialAd -> canShowAd(ad::canShow, ad::show)
@@ -787,7 +787,7 @@ class BidMachineAdapter : PartnerAdapter {
                     SHOW_FAILED,
                     "Ad is not an instance of InterstitialAd or RewardedAd.",
                 )
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.WrongResourceType))
             }
         }
     }
@@ -817,7 +817,7 @@ class BidMachineAdapter : PartnerAdapter {
 
             else -> {
                 PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an instance of BannerView, InterstitialAd, or RewardedAd.")
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.WrongResourceType))
             }
         }
     }
@@ -831,15 +831,15 @@ class BidMachineAdapter : PartnerAdapter {
      */
     private fun getChartboostMediationError(error: BMError?) =
         when (error) {
-            BMError.NoConnection -> ChartboostMediationError.CM_NO_CONNECTIVITY
-            BMError.Request -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-            BMError.Server -> ChartboostMediationError.CM_AD_SERVER_ERROR
-            BMError.AlreadyShown -> ChartboostMediationError.CM_SHOW_FAILURE_SHOW_IN_PROGRESS
-            BMError.Expired, BMError.Destroyed -> ChartboostMediationError.CM_SHOW_FAILURE_AD_EXPIRED
-            BMError.NoFill -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-            BMError.TimeoutError -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-            BMError.InternalUnknownError -> ChartboostMediationError.CM_INTERNAL_ERROR
+            BMError.NoConnection -> ChartboostMediationError.OtherError.NoConnectivity
+            BMError.Request -> ChartboostMediationError.LoadError.InvalidAdRequest
+            BMError.Server -> ChartboostMediationError.OtherError.AdServerError
+            BMError.AlreadyShown -> ChartboostMediationError.ShowError.ShowInProgress
+            BMError.Expired, BMError.Destroyed -> ChartboostMediationError.ShowError.AdExpired
+            BMError.NoFill -> ChartboostMediationError.LoadError.NoFill
+            BMError.TimeoutError -> ChartboostMediationError.LoadError.AdRequestTimeout
+            BMError.InternalUnknownError -> ChartboostMediationError.OtherError.InternalError
 
-            else -> ChartboostMediationError.CM_PARTNER_ERROR
+            else -> ChartboostMediationError.OtherError.PartnerError
         }
 }
