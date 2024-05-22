@@ -10,19 +10,38 @@ package com.chartboost.mediation.bidmachineadapter
 import android.app.Activity
 import android.content.Context
 import android.util.Size
-import com.chartboost.chartboostmediationsdk.domain.AdFormat
-import com.chartboost.chartboostmediationsdk.domain.ChartboostMediationAdException
-import com.chartboost.chartboostmediationsdk.domain.ChartboostMediationError
-import com.chartboost.chartboostmediationsdk.domain.GdprConsentStatus
-import com.chartboost.chartboostmediationsdk.domain.PartnerAd
-import com.chartboost.chartboostmediationsdk.domain.PartnerAdListener
-import com.chartboost.chartboostmediationsdk.domain.PartnerAdLoadRequest
-import com.chartboost.chartboostmediationsdk.domain.PartnerAdapter
-import com.chartboost.chartboostmediationsdk.domain.PartnerAdapterConfiguration
-import com.chartboost.chartboostmediationsdk.domain.PartnerConfiguration
-import com.chartboost.chartboostmediationsdk.domain.PreBidRequest
+import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
-import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.CUSTOM
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_CLICK
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_DISMISS
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_EXPIRE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_REWARD
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_TRACK_IMPRESSION
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_DENIED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_GRANTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_UNKNOWN
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_NOT_UNDERAGE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_UNDERAGE
+import com.chartboost.core.consent.ConsentKey
+import com.chartboost.core.consent.ConsentKeys
+import com.chartboost.core.consent.ConsentValue
+import com.chartboost.core.consent.ConsentValues
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
 import io.bidmachine.banner.BannerListener
@@ -81,11 +100,11 @@ class BidMachineAdapter : PartnerAdapter {
     override suspend fun setUp(
         context: Context,
         partnerConfiguration: PartnerConfiguration,
-    ): Result<Unit> {
+    ): Result<Map<String, Any>> {
         PartnerLogController.log(SETUP_STARTED)
 
         return suspendCancellableCoroutine { continuation ->
-            fun resumeOnce(result: Result<Unit>) {
+            fun resumeOnce(result: Result<Map<String, Any>>) {
                 if (continuation.isActive) {
                     continuation.resume(result)
                 }
@@ -99,7 +118,8 @@ class BidMachineAdapter : PartnerAdapter {
                     bidMachineRewardedAds.clear()
                     BidMachine.initialize(context, sourceId) {
                         if (BidMachine.isInitialized()) {
-                            resumeOnce(Result.success(PartnerLogController.log(SETUP_SUCCEEDED)))
+                            PartnerLogController.log(SETUP_SUCCEEDED)
+                            resumeOnce(Result.success(emptyMap()))
                         } else {
                             PartnerLogController.log(SETUP_FAILED)
                             resumeOnce(
@@ -122,29 +142,29 @@ class BidMachineAdapter : PartnerAdapter {
      * Get a bid token if network bidding is supported.
      *
      * @param context The current [Context].
-     * @param request The [PreBidRequest] instance containing relevant data for the current bid request.
+     * @param request The [PartnerAdPreBidRequest] instance containing relevant data for the current bid request.
      *
      * @return A Map of biddable token Strings.
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest,
-    ): Map<String, String> {
+        request: PartnerAdPreBidRequest,
+    ): Result<Map<String, String>> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
 
         val adFormat =
-            when (request.format.key) {
-                AdFormat.BANNER.key, "adaptive_banner" -> AdsFormat.Banner
-                AdFormat.INTERSTITIAL.key -> AdsFormat.Interstitial
-                AdFormat.REWARDED.key, "rewarded_interstitial" -> AdsFormat.Rewarded
-                else -> return emptyMap()
+            when (request.format) {
+                PartnerAdFormats.BANNER -> AdsFormat.Banner
+                PartnerAdFormats.INTERSTITIAL -> AdsFormat.Interstitial
+                PartnerAdFormats.REWARDED, PartnerAdFormats.REWARDED_INTERSTITIAL -> AdsFormat.Rewarded
+                else -> return Result.success(emptyMap())
             }
 
         return suspendCancellableCoroutine { continuation ->
             BidMachine.getBidToken(context, adFormat) { token ->
                 if (continuation.isActive) {
                     PartnerLogController.log(if (token.isEmpty()) BIDDER_INFO_FETCH_FAILED else BIDDER_INFO_FETCH_SUCCEEDED)
-                    continuation.resume(mapOf("token" to token))
+                    continuation.resume(Result.success(mapOf("token" to token)))
                 }
             }
         }
@@ -173,10 +193,10 @@ class BidMachineAdapter : PartnerAdapter {
                 }
             }
 
-            when (request.format.key) {
-                AdFormat.BANNER.key, "adaptive_banner" -> {
+            when (request.format) {
+                PartnerAdFormats.BANNER -> {
                     val bannerBuilder =
-                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.size))
+                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.bannerSize?.size))
                     val bannerRequest =
                         buildBidMachineAdRequest<BannerRequest>(request, bannerBuilder)
 
@@ -187,7 +207,7 @@ class BidMachineAdapter : PartnerAdapter {
                         continuation = continuation,
                     ).load(bannerRequest)
                 }
-                AdFormat.INTERSTITIAL.key -> {
+                PartnerAdFormats.INTERSTITIAL -> {
                     val interstitialRequest =
                         buildBidMachineAdRequest<InterstitialRequest>(request, InterstitialRequest.Builder())
 
@@ -199,7 +219,7 @@ class BidMachineAdapter : PartnerAdapter {
                             continuation = continuation,
                         ).load(interstitialRequest)
                 }
-                AdFormat.REWARDED.key, "rewarded_interstitial" -> {
+                PartnerAdFormats.REWARDED, PartnerAdFormats.REWARDED_INTERSTITIAL -> {
                     val rewardedRequest =
                         buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
 
@@ -235,13 +255,13 @@ class BidMachineAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
 
-        return when (partnerAd.request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> {
+        return when (partnerAd.request.format) {
+            PartnerAdFormats.BANNER-> {
                 // Banner ads do not have a separate "show" mechanism.
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key, "rewarded_interstitial" ->
+            PartnerAdFormats.INTERSTITIAL, PartnerAdFormats.REWARDED, PartnerAdFormats.REWARDED_INTERSTITIAL ->
                 showFullscreenAd(
                     partnerAd,
                 )
@@ -264,61 +284,31 @@ class BidMachineAdapter : PartnerAdapter {
         return destroyBidMachineAd(partnerAd)
     }
 
-    /**
-     * Notify the BidMachine SDK of the GDPR applicability and consent status.
-     *
-     * @param context The current [Context].
-     * @param applies True if GDPR applies, false otherwise.
-     * @param gdprConsentStatus The user's GDPR consent status.
-     */
-    override fun setGdpr(
+    override fun setConsents(
         context: Context,
-        applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus,
+        consents: Map<ConsentKey, ConsentValue>,
+        modifiedKeys: Set<ConsentKey>
     ) {
-        PartnerLogController.log(
-            when (applies) {
-                true -> GDPR_APPLICABLE
-                false -> GDPR_NOT_APPLICABLE
-                else -> GDPR_UNKNOWN
-            },
-        )
+        var userConsented = false
+        consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.let {
+            PartnerLogController.log(
+                when (it) {
+                    ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
+                    ConsentValues.DENIED -> GDPR_CONSENT_DENIED
+                    else -> GDPR_CONSENT_UNKNOWN
+                },
+            )
+            userConsented = it == ConsentValues.GRANTED
+        }
+        consents[ConsentKeys.TCF]?.let {
+            BidMachine.setConsentConfig(userConsented, it)
+        }
 
-        PartnerLogController.log(
-            when (gdprConsentStatus) {
-                GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
-                GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
-                GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            },
-        )
+        consents[ConsentKeys.USP]?.let {
+            PartnerLogController.log(CUSTOM, "US Privacy String: $it")
 
-        BidMachine.setSubjectToGDPR(applies)
-
-        val userConsented = gdprConsentStatus == GdprConsentStatus.GDPR_CONSENT_GRANTED
-        // Chartboost Mediation does not currently have support for consent string.
-        BidMachine.setConsentConfig(userConsented, null)
-    }
-
-    /**
-     * Notify BidMachine of the CCPA compliance.
-     * @param context The current [Context].
-     * @param hasGrantedCcpaConsent True if the user has granted CCPA consent, false otherwise.
-     * @param privacyString The CCPA privacy String.
-     */
-    override fun setCcpaConsent(
-        context: Context,
-        hasGrantedCcpaConsent: Boolean,
-        privacyString: String,
-    ) {
-        PartnerLogController.log(
-            if (hasGrantedCcpaConsent) {
-                CCPA_CONSENT_GRANTED
-            } else {
-                CCPA_CONSENT_DENIED
-            },
-        )
-
-        BidMachine.setUSPrivacyString(privacyString)
+            BidMachine.setUSPrivacyString(it)
+        }
     }
 
     /**
@@ -372,21 +362,21 @@ class BidMachineAdapter : PartnerAdapter {
      * Notify BidMachine of the COPPA subjectivity.
      *
      * @param context The current [Context].
-     * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
+     * @param isUserUnderage True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(
+    override fun setIsUserUnderage(
         context: Context,
-        isSubjectToCoppa: Boolean,
+        isUserUnderage: Boolean,
     ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) {
-                COPPA_SUBJECT
+            if (isUserUnderage) {
+                USER_IS_UNDERAGE
             } else {
-                COPPA_NOT_SUBJECT
+                USER_IS_NOT_UNDERAGE
             },
         )
 
-        BidMachine.setCoppa(isSubjectToCoppa)
+        BidMachine.setCoppa(isUserUnderage)
     }
 
     /**
