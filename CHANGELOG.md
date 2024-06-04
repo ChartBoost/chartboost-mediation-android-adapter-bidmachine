@@ -5,8 +5,6 @@ Adapters are compatible with any Chartboost Mediation SDK version within that ma
 
 ### 5.2.7.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 2.7.0.
-
-### 5.2.6.0.0
 - This version of the adapter supports Chartboost Mediation SDK version 5.+.
 
 ### 4.2.6.0.0
