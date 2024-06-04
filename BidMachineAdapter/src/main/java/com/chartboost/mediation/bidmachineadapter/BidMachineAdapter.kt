@@ -256,7 +256,7 @@ class BidMachineAdapter : PartnerAdapter {
         PartnerLogController.log(SHOW_STARTED)
 
         return when (partnerAd.request.format) {
-            PartnerAdFormats.BANNER-> {
+            PartnerAdFormats.BANNER -> {
                 // Banner ads do not have a separate "show" mechanism.
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
@@ -287,7 +287,7 @@ class BidMachineAdapter : PartnerAdapter {
     override fun setConsents(
         context: Context,
         consents: Map<ConsentKey, ConsentValue>,
-        modifiedKeys: Set<ConsentKey>
+        modifiedKeys: Set<ConsentKey>,
     ) {
         var userConsented = false
         consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.let {
