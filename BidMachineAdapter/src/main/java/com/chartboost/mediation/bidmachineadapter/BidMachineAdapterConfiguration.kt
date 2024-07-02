@@ -73,22 +73,26 @@ object BidMachineAdapterConfiguration : PartnerAdapterConfiguration {
     /**
      * Globally set targeting parameters.
      */
-    fun setTargetingParams(targetingParams: TargetingParams) {
-        BidMachine.setTargetingParams(targetingParams)
-        PartnerLogController.log(
-            PartnerLogController.PartnerAdapterEvents.CUSTOM,
-            "BidMachine targeting parameters set with $targetingParams",
-        )
-    }
+    var targetingParams: TargetingParams? = null
+        set(value) {
+            field = value
+            BidMachine.setTargetingParams(value)
+            PartnerLogController.log(
+                PartnerLogController.PartnerAdapterEvents.CUSTOM,
+                "BidMachine targeting parameters set with $value",
+            )
+        }
 
     /**
-     * Set Publisher information.
+     * BidMachine Publisher information.
      */
-    fun setPublisher(publisher: Publisher) {
-        BidMachine.setPublisher(publisher)
-        PartnerLogController.log(
-            PartnerLogController.PartnerAdapterEvents.CUSTOM,
-            "BidMachine publisher information set with: $publisher",
-        )
-    }
+    var publisher: Publisher? = null
+        set(value) {
+            field = value
+            BidMachine.setPublisher(publisher)
+            PartnerLogController.log(
+                PartnerLogController.PartnerAdapterEvents.CUSTOM,
+                "BidMachine publisher information set with: $publisher",
+            )
+        }
 }
