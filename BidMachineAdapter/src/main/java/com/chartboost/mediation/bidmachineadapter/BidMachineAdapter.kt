@@ -296,8 +296,10 @@ class BidMachineAdapter : PartnerAdapter {
         consents: Map<ConsentKey, ConsentValue>,
         modifiedKeys: Set<ConsentKey>,
     ) {
+        val consent = consents[configuration.partnerId]?.takeIf { it.isNotBlank() }
+            ?: consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.takeIf { it.isNotBlank() }
         var userConsented = false
-        consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.let {
+        consent?.let {
             PartnerLogController.log(
                 when (it) {
                     ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
@@ -307,6 +309,7 @@ class BidMachineAdapter : PartnerAdapter {
             )
             userConsented = it == ConsentValues.GRANTED
         }
+
         consents[ConsentKeys.TCF]?.let {
             BidMachine.setConsentConfig(userConsented, it)
         }
@@ -315,6 +318,12 @@ class BidMachineAdapter : PartnerAdapter {
             PartnerLogController.log(CUSTOM, "US Privacy String: $it")
 
             BidMachine.setUSPrivacyString(it)
+        }
+
+        val sharedPrefs =
+            context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
+        sharedPrefs.getString("IABTCF_gdprApplies", null)?.let {
+            BidMachine.setSubjectToGDPR(it == "1")
         }
     }
 
