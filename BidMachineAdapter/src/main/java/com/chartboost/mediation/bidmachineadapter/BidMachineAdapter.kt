@@ -316,8 +316,8 @@ class BidMachineAdapter : PartnerAdapter {
 
         val sharedPrefs =
             context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
-        sharedPrefs.getString("IABTCF_gdprApplies", null)?.let {
-            BidMachine.setSubjectToGDPR(it == "1")
+        sharedPrefs.getInt("IABTCF_gdprApplies", -1).takeIf { it != -1 }?.let {
+            BidMachine.setSubjectToGDPR(it == 1)
         }
     }
 
