@@ -10,6 +10,7 @@ package com.chartboost.mediation.bidmachineadapter
 import android.app.Activity
 import android.content.Context
 import android.util.Size
+import com.chartboost.chartboostmediationsdk.ad.ChartboostMediationBannerAdView.ChartboostMediationBannerSize.Companion.asSize
 import com.chartboost.chartboostmediationsdk.domain.*
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_FAILED
@@ -203,7 +204,7 @@ class BidMachineAdapter : PartnerAdapter {
             when (request.format) {
                 PartnerAdFormats.BANNER -> {
                     val bannerBuilder =
-                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.bannerSize?.size))
+                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.bannerSize?.asSize()))
                     val bannerRequest =
                         buildBidMachineAdRequest<BannerRequest>(request, bannerBuilder)
 
