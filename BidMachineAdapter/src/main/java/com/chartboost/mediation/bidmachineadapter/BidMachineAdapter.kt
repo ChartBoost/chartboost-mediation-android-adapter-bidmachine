@@ -230,7 +230,6 @@ class BidMachineAdapter : PartnerAdapter {
                         )
                     )
                 }
-                }
             }
         }
     }
