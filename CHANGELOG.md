@@ -3,9 +3,19 @@
 Note the first digit of every adapter version corresponds to the major version of the Chartboost Mediation SDK compatible with that adapter. 
 Adapters are compatible with any Chartboost Mediation SDK version within that major version.
 
+### 5.3.0.0.0
+- This version of the adapter has been certified with BidMachine Ads SDK 3.0.0.
+
 ### 5.2.7.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 2.7.0.
 - This version of the adapter supports Chartboost Mediation SDK version 5.+.
+
+### 4.3.0.0.0
+- Uses BidMachine's `getExtrasParam()` method when bidding.
+- This version of the adapter has been certified with BidMachine Ads SDK 3.0.0.
+
+### 4.2.7.0.0
+- This version of the adapter has been certified with BidMachine Ads SDK 2.7.0.
 
 ### 4.2.6.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 2.6.0.
