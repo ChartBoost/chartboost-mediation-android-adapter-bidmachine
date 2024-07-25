@@ -220,7 +220,16 @@ class BidMachineAdapter : PartnerAdapter {
             BidMachine.getBidToken(context, adFormat) { token ->
                 if (continuation.isActive) {
                     PartnerLogController.log(if (token.isEmpty()) BIDDER_INFO_FETCH_FAILED else BIDDER_INFO_FETCH_SUCCEEDED)
-                    continuation.resume(mapOf("token" to token))
+                    val encodedUrl = BidMachine.getExtrasParam(context, "chartboost_encoded_url_key") as? String ?: ""
+                    continuation.resume(
+                        Result.success(
+                            mapOf(
+                                "encoded_key" to encodedUrl,
+                                "token" to token,
+                            )
+                        )
+                    )
+                }
                 }
             }
         }
