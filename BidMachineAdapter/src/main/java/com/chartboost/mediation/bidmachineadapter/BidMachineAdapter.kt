@@ -1,31 +1,51 @@
 /*
  * Copyright 2023-2024 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
 
 package com.chartboost.mediation.bidmachineadapter
 
+import android.app.Activity
 import android.content.Context
 import android.util.Size
-import com.chartboost.heliumsdk.domain.AdFormat
-import com.chartboost.heliumsdk.domain.ChartboostMediationAdException
-import com.chartboost.heliumsdk.domain.ChartboostMediationError
-import com.chartboost.heliumsdk.domain.GdprConsentStatus
-import com.chartboost.heliumsdk.domain.PartnerAd
-import com.chartboost.heliumsdk.domain.PartnerAdListener
-import com.chartboost.heliumsdk.domain.PartnerAdLoadRequest
-import com.chartboost.heliumsdk.domain.PartnerAdapter
-import com.chartboost.heliumsdk.domain.PartnerConfiguration
-import com.chartboost.heliumsdk.domain.PreBidRequest
-import com.chartboost.heliumsdk.utils.PartnerLogController
-import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.ad.ChartboostMediationBannerAdView.ChartboostMediationBannerSize.Companion.asSize
+import com.chartboost.chartboostmediationsdk.domain.*
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.CUSTOM
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_CLICK
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_DISMISS
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_EXPIRE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_REWARD
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_TRACK_IMPRESSION
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_DENIED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_GRANTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_UNKNOWN
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_NOT_UNDERAGE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_UNDERAGE
+import com.chartboost.core.consent.ConsentKey
+import com.chartboost.core.consent.ConsentKeys
+import com.chartboost.core.consent.ConsentValue
+import com.chartboost.core.consent.ConsentValues
 import io.bidmachine.AdsFormat
 import io.bidmachine.BidMachine
 import io.bidmachine.PriceFloorParams
-import io.bidmachine.Publisher
-import io.bidmachine.TargetingParams
 import io.bidmachine.banner.BannerListener
 import io.bidmachine.banner.BannerRequest
 import io.bidmachine.banner.BannerSize
@@ -51,57 +71,15 @@ import kotlin.coroutines.resume
 class BidMachineAdapter : PartnerAdapter {
     companion object {
         /**
-         * Test mode flag that can optionally be set to true to enable test ads. It can be set at any
-         * time and it will take effect for the next ad request. Remember to set this to false in
-         * production.
-         */
-        var testModeEnabled = false
-            set(value) {
-                field = value
-                BidMachine.setTestMode(value)
-                PartnerLogController.log(
-                    CUSTOM,
-                    "BidMachine test mode is ${
-                        if (value) {
-                            "enabled. Remember to disable it before publishing."
-                        } else {
-                            "disabled."
-                        }
-                    }",
-                )
-            }
-
-        /**
-         * Enable/disable logging for the BidMachine Ads SDK.
-         */
-        var isLoggingEnabled = false
-            set(value) {
-                field = value
-                BidMachine.setLoggingEnabled(value)
-                PartnerLogController.log(CUSTOM, "BidMachine logging ${ if (value) "enabled" else "disabled" }.")
-            }
-
-        /**
-         * Globally set targeting parameters.
-         */
-        fun setTargetingParams(targetingParams: TargetingParams) {
-            BidMachine.setTargetingParams(targetingParams)
-            PartnerLogController.log(CUSTOM, "BidMachine targeting parameters set with $targetingParams")
-        }
-
-        /**
-         * Set Publisher information.
-         */
-        fun setPublisher(publisher: Publisher) {
-            BidMachine.setPublisher(publisher)
-            PartnerLogController.log(CUSTOM, "BidMachine publisher information set with: $publisher")
-        }
-
-        /**
          * Key for parsing the BidMachine SDK source ID.
          */
         private const val SOURCE_ID_KEY = "source_id"
     }
+
+    /**
+     * The BidMachine adapter configuration.
+     */
+    override var configuration: PartnerAdapterConfiguration = BidMachineAdapterConfiguration
 
     /**
      * A map of BidMachine interstitial ads keyed by a request identifier.
@@ -114,39 +92,6 @@ class BidMachineAdapter : PartnerAdapter {
     private val bidMachineRewardedAds = mutableMapOf<String, RewardedAd>()
 
     /**
-     * Get the BidMachine Ads SDK version.
-     */
-    override val partnerSdkVersion: String
-        get() = BidMachine.VERSION
-
-    /**
-     * Get the BidMachine adapter version.
-     *
-     * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Chartboost Mediation:
-     *
-     * Chartboost Mediation.Partner.Adapter
-     *
-     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
-     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
-     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
-     */
-    override val adapterVersion: String
-        get() = BuildConfig.CHARTBOOST_MEDIATION_BIDMACHINE_ADAPTER_VERSION
-
-    /**
-     * Get the partner name for internal uses.
-     */
-    override val partnerId: String
-        get() = "bidmachine"
-
-    /**
-     * Get the partner name for external uses.
-     */
-    override val partnerDisplayName: String
-        get() = "BidMachine"
-
-    /**
      * Initialize the BidMachine Ads SDK so that it is ready to request ads.
      *
      * @param context The current [Context].
@@ -157,11 +102,11 @@ class BidMachineAdapter : PartnerAdapter {
     override suspend fun setUp(
         context: Context,
         partnerConfiguration: PartnerConfiguration,
-    ): Result<Unit> {
+    ): Result<Map<String, Any>> {
         PartnerLogController.log(SETUP_STARTED)
 
         return suspendCancellableCoroutine { continuation ->
-            fun resumeOnce(result: Result<Unit>) {
+            fun resumeOnce(result: Result<Map<String, Any>>) {
                 if (continuation.isActive) {
                     continuation.resume(result)
                 }
@@ -175,12 +120,13 @@ class BidMachineAdapter : PartnerAdapter {
                     bidMachineRewardedAds.clear()
                     BidMachine.initialize(context, sourceId) {
                         if (BidMachine.isInitialized()) {
-                            resumeOnce(Result.success(PartnerLogController.log(SETUP_SUCCEEDED)))
+                            PartnerLogController.log(SETUP_SUCCEEDED)
+                            resumeOnce(Result.success(emptyMap()))
                         } else {
                             PartnerLogController.log(SETUP_FAILED)
                             resumeOnce(
                                 Result.failure(
-                                    ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN),
+                                    ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown),
                                 ),
                             )
                         }
@@ -188,7 +134,7 @@ class BidMachineAdapter : PartnerAdapter {
                 } ?: run {
                 PartnerLogController.log(SETUP_FAILED, "Missing source ID.")
                 resumeOnce(
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_INVALID_CREDENTIALS)),
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.InvalidCredentials)),
                 )
             }
         }
@@ -198,22 +144,22 @@ class BidMachineAdapter : PartnerAdapter {
      * Get a bid token if network bidding is supported.
      *
      * @param context The current [Context].
-     * @param request The [PreBidRequest] instance containing relevant data for the current bid request.
+     * @param request The [PartnerAdPreBidRequest] instance containing relevant data for the current bid request.
      *
      * @return A Map of biddable token Strings.
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest,
-    ): Map<String, String> {
+        request: PartnerAdPreBidRequest,
+    ): Result<Map<String, String>> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
 
         val adFormat =
-            when (request.format.key) {
-                AdFormat.BANNER.key, "adaptive_banner" -> AdsFormat.Banner
-                AdFormat.INTERSTITIAL.key -> AdsFormat.Interstitial
-                AdFormat.REWARDED.key, "rewarded_interstitial" -> AdsFormat.Rewarded
-                else -> return emptyMap()
+            when (request.format) {
+                PartnerAdFormats.BANNER -> AdsFormat.Banner
+                PartnerAdFormats.INTERSTITIAL -> AdsFormat.Interstitial
+                PartnerAdFormats.REWARDED, PartnerAdFormats.REWARDED_INTERSTITIAL -> AdsFormat.Rewarded
+                else -> return Result.success(emptyMap())
             }
 
         return suspendCancellableCoroutine { continuation ->
@@ -222,9 +168,11 @@ class BidMachineAdapter : PartnerAdapter {
                     PartnerLogController.log(if (token.isEmpty()) BIDDER_INFO_FETCH_FAILED else BIDDER_INFO_FETCH_SUCCEEDED)
                     val encodedUrl = BidMachine.getExtrasParam(context, "chartboost_encoded_url_key") as? String ?: ""
                     continuation.resume(
-                        mapOf(
-                            "encoded_key" to encodedUrl,
-                            "token" to token,
+                        Result.success(
+                            mapOf(
+                                "encoded_key" to encodedUrl,
+                                "token" to token,
+                            )
                         )
                     )
                 }
@@ -255,10 +203,10 @@ class BidMachineAdapter : PartnerAdapter {
                 }
             }
 
-            when (request.format.key) {
-                AdFormat.BANNER.key, "adaptive_banner" -> {
+            when (request.format) {
+                PartnerAdFormats.BANNER -> {
                     val bannerBuilder =
-                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.size))
+                        BannerRequest.Builder().setSize(getBidMachineBannerAdSize(request.bannerSize?.asSize()))
                     val bannerRequest =
                         buildBidMachineAdRequest<BannerRequest>(request, bannerBuilder)
 
@@ -269,7 +217,7 @@ class BidMachineAdapter : PartnerAdapter {
                         continuation = continuation,
                     ).load(bannerRequest)
                 }
-                AdFormat.INTERSTITIAL.key -> {
+                PartnerAdFormats.INTERSTITIAL -> {
                     val interstitialRequest =
                         buildBidMachineAdRequest<InterstitialRequest>(request, InterstitialRequest.Builder())
 
@@ -281,7 +229,7 @@ class BidMachineAdapter : PartnerAdapter {
                             continuation = continuation,
                         ).load(interstitialRequest)
                 }
-                AdFormat.REWARDED.key, "rewarded_interstitial" -> {
+                PartnerAdFormats.REWARDED, PartnerAdFormats.REWARDED_INTERSTITIAL -> {
                     val rewardedRequest =
                         buildBidMachineAdRequest<RewardedRequest>(request, RewardedRequest.Builder())
 
@@ -296,7 +244,7 @@ class BidMachineAdapter : PartnerAdapter {
                 else -> {
                     PartnerLogController.log(LOAD_FAILED)
                     resumeOnce(
-                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT)),
+                        Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat)),
                     )
                 }
             }
@@ -306,30 +254,30 @@ class BidMachineAdapter : PartnerAdapter {
     /**
      * Attempt to show the currently loaded BidMachine ad.
      *
-     * @param context The current [Context]
+     * @param activity The current [Activity]
      * @param partnerAd The [PartnerAd] object containing the BidMachine ad to be shown.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(
-        context: Context,
+        activity: Activity,
         partnerAd: PartnerAd,
     ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
 
-        return when (partnerAd.request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> {
+        return when (partnerAd.request.format) {
+            PartnerAdFormats.BANNER -> {
                 // Banner ads do not have a separate "show" mechanism.
                 PartnerLogController.log(SHOW_SUCCEEDED)
                 Result.success(partnerAd)
             }
-            AdFormat.INTERSTITIAL.key, AdFormat.REWARDED.key, "rewarded_interstitial" ->
+            PartnerAdFormats.INTERSTITIAL, PartnerAdFormats.REWARDED, PartnerAdFormats.REWARDED_INTERSTITIAL ->
                 showFullscreenAd(
                     partnerAd,
                 )
             else -> {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
             }
         }
     }
@@ -346,61 +294,40 @@ class BidMachineAdapter : PartnerAdapter {
         return destroyBidMachineAd(partnerAd)
     }
 
-    /**
-     * Notify the BidMachine SDK of the GDPR applicability and consent status.
-     *
-     * @param context The current [Context].
-     * @param applies True if GDPR applies, false otherwise.
-     * @param gdprConsentStatus The user's GDPR consent status.
-     */
-    override fun setGdpr(
+    override fun setConsents(
         context: Context,
-        applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus,
+        consents: Map<ConsentKey, ConsentValue>,
+        modifiedKeys: Set<ConsentKey>,
     ) {
-        PartnerLogController.log(
-            when (applies) {
-                true -> GDPR_APPLICABLE
-                false -> GDPR_NOT_APPLICABLE
-                else -> GDPR_UNKNOWN
-            },
-        )
+        val consent = consents[configuration.partnerId]?.takeIf { it.isNotBlank() }
+            ?: consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.takeIf { it.isNotBlank() }
+        var userConsented = false
+        consent?.let {
+            PartnerLogController.log(
+                when (it) {
+                    ConsentValues.GRANTED -> GDPR_CONSENT_GRANTED
+                    ConsentValues.DENIED -> GDPR_CONSENT_DENIED
+                    else -> GDPR_CONSENT_UNKNOWN
+                },
+            )
+            userConsented = it == ConsentValues.GRANTED
+        }
 
-        PartnerLogController.log(
-            when (gdprConsentStatus) {
-                GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
-                GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
-                GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            },
-        )
+        consents[ConsentKeys.TCF]?.let {
+            BidMachine.setConsentConfig(userConsented, it)
+        }
 
-        BidMachine.setSubjectToGDPR(applies)
+        consents[ConsentKeys.USP]?.let {
+            PartnerLogController.log(CUSTOM, "US Privacy String: $it")
 
-        val userConsented = gdprConsentStatus == GdprConsentStatus.GDPR_CONSENT_GRANTED
-        // Chartboost Mediation does not currently have support for consent string.
-        BidMachine.setConsentConfig(userConsented, null)
-    }
+            BidMachine.setUSPrivacyString(it)
+        }
 
-    /**
-     * Notify BidMachine of the CCPA compliance.
-     * @param context The current [Context].
-     * @param hasGrantedCcpaConsent True if the user has granted CCPA consent, false otherwise.
-     * @param privacyString The CCPA privacy String.
-     */
-    override fun setCcpaConsent(
-        context: Context,
-        hasGrantedCcpaConsent: Boolean,
-        privacyString: String,
-    ) {
-        PartnerLogController.log(
-            if (hasGrantedCcpaConsent) {
-                CCPA_CONSENT_GRANTED
-            } else {
-                CCPA_CONSENT_DENIED
-            },
-        )
-
-        BidMachine.setUSPrivacyString(privacyString)
+        val sharedPrefs =
+            context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
+        sharedPrefs.getInt("IABTCF_gdprApplies", -1).takeIf { it != -1 }?.let {
+            BidMachine.setSubjectToGDPR(it == 1)
+        }
     }
 
     /**
@@ -454,21 +381,21 @@ class BidMachineAdapter : PartnerAdapter {
      * Notify BidMachine of the COPPA subjectivity.
      *
      * @param context The current [Context].
-     * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
+     * @param isUserUnderage True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(
+    override fun setIsUserUnderage(
         context: Context,
-        isSubjectToCoppa: Boolean,
+        isUserUnderage: Boolean,
     ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) {
-                COPPA_SUBJECT
+            if (isUserUnderage) {
+                USER_IS_UNDERAGE
             } else {
-                COPPA_NOT_SUBJECT
+                USER_IS_NOT_UNDERAGE
             },
         )
 
-        BidMachine.setCoppa(isSubjectToCoppa)
+        BidMachine.setCoppa(isUserUnderage)
     }
 
     /**
@@ -485,7 +412,11 @@ class BidMachineAdapter : PartnerAdapter {
         return if (adm.isNotEmpty()) {
             bidMachineBuilder.setBidPayload(adm).build() as T
         } else {
-            val price = request.partnerSettings["price"]?.toDouble() ?: 0.0
+            val price = try {
+                (request.partnerSettings["price"] as? String?)?.toDouble() ?: 0.0
+            } catch (e: NumberFormatException) {
+                0.0
+            }
             bidMachineBuilder.setPlacementId(request.partnerPlacement)
                 .setPriceFloorParams(
                     PriceFloorParams().addPriceFloor(price),
@@ -531,7 +462,7 @@ class BidMachineAdapter : PartnerAdapter {
             banner: BannerView,
             error: BMError,
         ) {
-            PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL.cause)
+            PartnerLogController.log(LOAD_FAILED, ChartboostMediationError.LoadError.NoFill.cause.toString())
             banner.destroy()
             resumeOnce(Result.failure(ChartboostMediationAdException(getChartboostMediationError(error))))
         }
@@ -844,14 +775,14 @@ class BidMachineAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             } else {
                 PartnerLogController.log(SHOW_FAILED)
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_READY))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotReady))
             }
         }
 
         return when (val ad = partnerAd.ad) {
             null -> {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotFound))
             }
 
             is InterstitialAd -> canShowAd(ad::canShow, ad::show)
@@ -862,7 +793,7 @@ class BidMachineAdapter : PartnerAdapter {
                     SHOW_FAILED,
                     "Ad is not an instance of InterstitialAd or RewardedAd.",
                 )
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.WrongResourceType))
             }
         }
     }
@@ -892,7 +823,7 @@ class BidMachineAdapter : PartnerAdapter {
 
             else -> {
                 PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an instance of BannerView, InterstitialAd, or RewardedAd.")
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.WrongResourceType))
             }
         }
     }
@@ -906,15 +837,15 @@ class BidMachineAdapter : PartnerAdapter {
      */
     private fun getChartboostMediationError(error: BMError?) =
         when (error) {
-            BMError.NoConnection -> ChartboostMediationError.CM_NO_CONNECTIVITY
-            BMError.Request -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-            BMError.Server -> ChartboostMediationError.CM_AD_SERVER_ERROR
-            BMError.AlreadyShown -> ChartboostMediationError.CM_SHOW_FAILURE_SHOW_IN_PROGRESS
-            BMError.Expired, BMError.Destroyed -> ChartboostMediationError.CM_SHOW_FAILURE_AD_EXPIRED
-            BMError.NoFill -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-            BMError.TimeoutError -> ChartboostMediationError.CM_LOAD_FAILURE_TIMEOUT
-            BMError.InternalUnknownError -> ChartboostMediationError.CM_INTERNAL_ERROR
+            BMError.NoConnection -> ChartboostMediationError.OtherError.NoConnectivity
+            BMError.Request -> ChartboostMediationError.LoadError.InvalidAdRequest
+            BMError.Server -> ChartboostMediationError.OtherError.AdServerError
+            BMError.AlreadyShown -> ChartboostMediationError.ShowError.ShowInProgress
+            BMError.Expired, BMError.Destroyed -> ChartboostMediationError.ShowError.AdExpired
+            BMError.NoFill -> ChartboostMediationError.LoadError.NoFill
+            BMError.TimeoutError -> ChartboostMediationError.LoadError.AdRequestTimeout
+            BMError.InternalUnknownError -> ChartboostMediationError.OtherError.InternalError
 
-            else -> ChartboostMediationError.CM_PARTNER_ERROR
+            else -> ChartboostMediationError.OtherError.PartnerError
         }
 }
