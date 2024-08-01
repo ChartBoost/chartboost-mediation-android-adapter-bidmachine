@@ -412,7 +412,11 @@ class BidMachineAdapter : PartnerAdapter {
         return if (adm.isNotEmpty()) {
             bidMachineBuilder.setBidPayload(adm).build() as T
         } else {
-            val price = request.partnerSettings["price"]?.toDouble() ?: 0.0
+            val price = try {
+                (request.partnerSettings["price"] as? String?)?.toDouble() ?: 0.0
+            } catch (e: NumberFormatException) {
+                0.0
+            }
             bidMachineBuilder.setPlacementId(request.partnerPlacement)
                 .setPriceFloorParams(
                     PriceFloorParams().addPriceFloor(price),
