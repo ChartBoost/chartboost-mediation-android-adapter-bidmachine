@@ -8,6 +8,9 @@ All official releases can be found on this repository's [releases page](https://
 ### 5.3.0.1.0
 - This version of the adapter has been certified with BidMachine Ads SDK 3.0.1.
 
+### 4.3.0.1.0
+- This version of the adapter has been certified with BidMachine Ads SDK 3.0.1.
+
 ### 5.3.0.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 3.0.0.
 - This version of the adapter supports Chartboost Mediation SDK version 5.+.
