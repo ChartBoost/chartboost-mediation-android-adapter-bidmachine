@@ -14,6 +14,9 @@ All official releases can be found on this repository's [releases page](https://
 ### 5.3.3.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 3.3.0.
 
+### 5.3.2.1.0
+- This version of the adapter has been certified with BidMachine Ads SDK 3.2.1.
+
 ### 5.3.2.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 3.2.0.
 
