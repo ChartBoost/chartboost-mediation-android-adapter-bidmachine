@@ -11,6 +11,10 @@ All official releases can be found on this repository's [releases page](https://
 
 ## Mediation 5
 
+### 5.3.4.0.0
+- This version of the adapter has been certified with BidMachine Ads SDK 3.4.0.
+- Update the `compileSdk` and `targetSdk` to 35.
+
 ### 5.3.3.0.0
 - This version of the adapter has been certified with BidMachine Ads SDK 3.3.0.
 
