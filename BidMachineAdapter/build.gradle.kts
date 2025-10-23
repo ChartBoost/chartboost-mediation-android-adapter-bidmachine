@@ -37,11 +37,11 @@ repositories {
 
 android {
     namespace = "com.chartboost.mediation.bidmachineadapter"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
         // If you touch the following line, don't forget to update scripts/get_rc_version.zsh
         android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "5.3.3.0.0"
         buildConfigField("String", "CHARTBOOST_MEDIATION_BIDMACHINE_ADAPTER_VERSION", "\"${android.defaultConfig.versionName}\"")
